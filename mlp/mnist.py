@@ -6,8 +6,9 @@ import pickle
 import os
 os.system("taskset -p 0xff %d" % os.getpid())
 
-f = gzip.open('mnist.pkl.gz')
-data = pickle.load(f)
+f = gzip.open('datasets/mnist.pkl.gz')
+# encoding='latin1' --> https://stackoverflow.com/a/41366785
+data = pickle.load(f, encoding='latin1')
 
 x_train = data[0][0]
 y_train = data[0][1]
@@ -22,7 +23,7 @@ train_data = np.append(x_train, y_train[..., None], axis=1)
 validation_data = np.append(x_valid, y_valid[..., None], axis=1)
 test_data = np.append(x_test, y_test[..., None], axis=1)
 
-perceptron = MLPerceptron(epochs=100, num_hidden=1500, mu=0.1, batch_size=100, l11=5e-5, l12=1e-5, l21=5e-5, l22=1e-5, debug=True)
+perceptron = MLPerceptron(epochs=100, nb_hidden=1500, mu=0.1, batch_size=100, l11=5e-5, l12=1e-5, l21=5e-5, l22=1e-5, debug=True)
 perceptron.test_data = test_data
 perceptron.validation_data = validation_data
 

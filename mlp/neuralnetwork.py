@@ -77,7 +77,7 @@ class MLPerceptron(object):
         # train
         report = None
         if self.debug:
-            report = open(self.report_file_name, 'wb')
+            report = open(self.report_file_name, 'w')
             report.write("epoch,train_error,train_avg_loss,valid_error,valid_avg_loss,test_error,test_avg_loss\n")
         for epoch in range(self.epochs):
             #
