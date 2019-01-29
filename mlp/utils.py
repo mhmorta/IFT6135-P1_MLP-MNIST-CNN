@@ -2,6 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
+# todo why safe?
 def safe_softmax(v):
     exps = np.exp(v - np.max(v))
     return exps / np.sum(exps)
@@ -60,9 +61,9 @@ def plot_decision_boundary(classifier, train_data):
 
 
 def test():
-    print safe_softmax_matrix(np.array([[-0.07843759, -0.24158356, 0.32002114]]))
-    print onehot_matrix(3, np.array([1]))
-    print one_hot(3, 1)
-    print relu([-1, 2])
-    print relu_derivative(np.array([-0.07843759, -0.24158356,  0.32002114]))
-    print np.reshape([5, 6] * np.matrix([[1, 2]]).transpose(), 1)
+    print(safe_softmax_matrix(np.array([[-0.07843759, -0.24158356, 0.32002114]])))
+    print(onehot_matrix(3, np.array([1])))
+    print(one_hot(3, 1))
+    print(relu([-1, 2]))
+    print(relu_derivative(np.array([-0.07843759, -0.24158356,  0.32002114])))
+    print(np.reshape([5, 6] * np.matrix([[1, 2]]).transpose(), 1))

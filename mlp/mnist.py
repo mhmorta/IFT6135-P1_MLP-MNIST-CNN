@@ -1,6 +1,7 @@
 import numpy as np
-from neuralnetwork import MLPerceptron
-import gzip,pickle
+from mlp.neuralnetwork import MLPerceptron
+import gzip
+import pickle
 
 import os
 os.system("taskset -p 0xff %d" % os.getpid())
@@ -31,4 +32,4 @@ perceptron.save_state("mnist.pkl")
 
 prediction = perceptron.compute_predictions(test_data[:, :-1])  # pass only the features without labels
 expected = test_data[:, -1].astype(int)  # labels
-print "\nError rate: ", 1 - np.mean(prediction == expected)
+print("\nError rate: ", 1 - np.mean(prediction == expected))

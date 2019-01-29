@@ -56,6 +56,7 @@ class MLPerceptron(object):
         :param j: number of columns
         :return: two-dimensional numpy array
         """
+        # todo why max to max?
         max_val = 1 / np.sqrt(j)
         return np.array([[random_uniform(-max_val, max_val) for _ in range(j)] for _ in range(i)])
 
@@ -154,6 +155,7 @@ class MLPerceptron(object):
             # Get the actual parameter value by it's name, e.g. w1, w2 etc
             parameter = self.__getattribute__(pname)
             # Iterate over each element of the parameter matrix, e.g. (0,0), (0,1), ...
+            #TODO ask?
             it = np.nditer(parameter, flags=['multi_index'], op_flags=['readwrite'])
             while not it.finished:
                 ix = it.multi_index
@@ -257,6 +259,7 @@ class MLPerceptron(object):
     def compute_predictions(self, test_data):
         # return the most probable class
         self.fprop(test_data)
+        #todo give out only one element
         return np.argmax(self._out, axis=1)  # we assume that the index == class
 
 

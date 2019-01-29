@@ -67,7 +67,6 @@ class Test(unittest.TestCase):
         validation_data = np.append(x_valid, y_valid[..., None], axis=1)
         test_data = np.append(x_test, y_test[..., None], axis=1)
 
-
         perceptron = MLPerceptron(epochs=1, nb_hidden=256, mu=0.5, batch_size=50, l11=5e-5, l12=1e-5, l21=5e-5, l22=1e-5)
         perceptron.test_data = test_data
         perceptron.validation_data = validation_data
