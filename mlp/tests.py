@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from .neuralnetwork import MLPerceptron, MLPerceptronIterative
+from .neuralnetwork import NN
 from .utils import plot_decision_boundary
 import gzip
 import pickle
@@ -12,7 +12,7 @@ class Test(unittest.TestCase):
     def test_moon_hidden_number(self):
 
         train_data, test_data = two_moon_dataset()
-        perceptron = MLPerceptron(epochs=1000, nb_hidden=50, mu=0.5, batch_size=10, l11=5e-5, l12=1e-5, l21=5e-5, l22=1e-5)
+        perceptron = NN(epochs=1000, hidden_dims=[50, 20], mu=0.5, batch_size=10)
         perceptron.train(train_data)
         perceptron.save_state("moons.pkl")
         prediction = perceptron.compute_predictions(test_data[:, :-1])  # pass only the features without labels
@@ -23,36 +23,23 @@ class Test(unittest.TestCase):
     def test_moons_load_params(self):
 
         train_data, test_data = two_moon_dataset()
-        perceptron = MLPerceptron()
+        perceptron = NN()
         perceptron.load_state("moons.pkl")
         prediction = perceptron.compute_predictions(test_data[:, :-1])  # pass only the features without labels
         expected = test_data[:, -1].astype(int)  # labels
         print("\nError rate: ", 1 - np.mean(prediction == expected))
         plot_decision_boundary(perceptron, test_data)
 
-    def test_moon_regularisation(self):
-
-        for l11, l12, l21, l22 in [(0.0003, 0.0001, 0.0003, 0.0001),
-                                   (0.0005, 0.0001, 0.0005, 0.0001),
-                                   (0.0005, 0.0001, 0.0003, 0.0001),
-                                   (0.0003, 0.0001, 0.0005, 0.0001),
-                                   (0.0007, 0.0002, 0.0003, 0.0001)]:
-            train_data, test_data = two_moon_dataset()
-            perceptron = MLPerceptron(epochs=10000, nb_hidden=50, mu=0.01, batch_size=50, l11=l11, l12=l12, l21=l21, l22=l22)
-            perceptron.train(train_data)
-            prediction = perceptron.compute_predictions(test_data[:, :-1])  # pass only the features without labels
-            expected = test_data[:, -1].astype(int)  # labels
-            print("\nError rate: ", 1 - np.mean(prediction == expected))
-            plot_decision_boundary(perceptron, test_data)
 
     def test_moon_validate_gradient(self):
         train_data, test_data = two_moon_dataset()
-        perceptron = MLPerceptronIterative(epochs=1, nb_hidden=4, mu=0.05, validate_gradient=True)
+        perceptron = NN(epochs=1, hidden_dims=[50, 20], mu=0.05, validate_gradient=True)
         perceptron.train(train_data)
 
     def test_mnist(self):
-        f = gzip.open('mnist.pkl.gz')
-        data = pickle.load(f)
+        f = gzip.open('mlp/datasets/mnist.pkl.gz')
+        # encoding='latin1' --> https://stackoverflow.com/a/41366785
+        data = pickle.load(f, encoding='latin1')
 
         x_train = data[0][0]
         y_train = data[0][1]
@@ -67,7 +54,7 @@ class Test(unittest.TestCase):
         validation_data = np.append(x_valid, y_valid[..., None], axis=1)
         test_data = np.append(x_test, y_test[..., None], axis=1)
 
-        perceptron = MLPerceptron(epochs=1, nb_hidden=256, mu=0.5, batch_size=50, l11=5e-5, l12=1e-5, l21=5e-5, l22=1e-5)
+        perceptron = NN(epochs=1, hidden_dims=[10, 20], mu=0.5, batch_size=50)
         perceptron.test_data = test_data
         perceptron.validation_data = validation_data
 
@@ -81,14 +68,9 @@ class Test(unittest.TestCase):
         expected = test_data[:, -1].astype(int)  # labels
         print("\nError rate: ", 1 - np.mean(prediction == expected))
 
-    def test_moon_validate_gradient_iterative(self):
-        train_data, test_data = two_moon_dataset()
-        perceptron = MLPerceptronIterative(epochs=4, nb_hidden=2, mu=0.05, validate_gradient=True)
-        perceptron.train(train_data)
-
 
 def two_moon_dataset():
-    data = np.loadtxt(open('2moons.txt', 'r'))
+    data = np.loadtxt(open('mlp/datasets/2moons.txt', 'r'))
     np.random.shuffle(data)
     train_data, test_data = np.vsplit(data, 2)
     return train_data, test_data

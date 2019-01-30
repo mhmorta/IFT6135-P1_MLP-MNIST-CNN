@@ -1,5 +1,5 @@
 import numpy as np
-from mlp.neuralnetwork import MLPerceptron
+from mlp.neuralnetwork import NN
 import gzip
 import pickle
 
@@ -23,7 +23,7 @@ train_data = np.append(x_train, y_train[..., None], axis=1)
 validation_data = np.append(x_valid, y_valid[..., None], axis=1)
 test_data = np.append(x_test, y_test[..., None], axis=1)
 
-perceptron = MLPerceptron(epochs=100, nb_hidden=1500, mu=0.1, batch_size=100, l11=5e-5, l12=1e-5, l21=5e-5, l22=1e-5, debug=True)
+perceptron = NN(epochs=100, hidden_dims=[500, 500], mu=0.1, batch_size=100, debug=True)
 perceptron.test_data = test_data
 perceptron.validation_data = validation_data
 
