@@ -23,7 +23,7 @@ train_data = np.append(x_train, y_train[..., None], axis=1)
 validation_data = np.append(x_valid, y_valid[..., None], axis=1)
 test_data = np.append(x_test, y_test[..., None], axis=1)
 
-perceptron = NN(epochs=100, hidden_dims=[500, 500], mu=0.1, batch_size=100, debug=True)
+perceptron = NN(epochs=20, hidden_dims=[1000, 200], mu=0.1, batch_size=100, debug=True)
 perceptron.test_data = test_data
 perceptron.validation_data = validation_data
 
@@ -33,4 +33,5 @@ perceptron.save_state("mnist.pkl")
 
 prediction = perceptron.compute_predictions(test_data[:, :-1])  # pass only the features without labels
 expected = test_data[:, -1].astype(int)  # labels
-print("\nError rate: ", 1 - np.mean(prediction == expected))
+print("\nTest error rate: ", 1 - np.mean(prediction == expected))
+print("\nTest accuracy: ", np.mean(prediction == expected) * 100)

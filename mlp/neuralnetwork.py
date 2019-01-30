@@ -99,7 +99,7 @@ class NN(object):
     def evaluate_and_log(self, epoch, report_file):
         stats = [epoch]
         print("\nEpoch: ", epoch)
-        for name, data in [('train', self.train_data), ('validation', self.validation_data), ('test', self.test_data)]:
+        for name, data in [('train', self.train_data), ('validation', self.validation_data)]:
             if data is not None:
                 prediction = self.compute_predictions(data[:, :-1])  # pass only the features without labels
                 expected = data[:, -1].astype(int)  # labels
@@ -107,6 +107,7 @@ class NN(object):
                 avg_loss = self.average_loss(expected)
                 print("%s error rate: " % name, error)
                 print("%s average loss: " % name, avg_loss)
+                print("%s accuracy: " % name, (1 - error) * 100)
                 stats.append(error)
                 stats.append(avg_loss)
             else:
@@ -125,6 +126,8 @@ class NN(object):
         print("b1: ", self.b1)
         print("W2: ", self.w2)
         print("b2: ", self.b2)
+        print("W3: ", self.w3)
+        print("b3: ", self.b3)
 
     def save_state(self, params_file):
         attributes = {k: v for k, v in self.__dict__.items() if not k.startswith('__')}
@@ -244,22 +247,22 @@ class NN(object):
         # start from the output layer
         grad_oa = self._out - onehot_matrix(self.nb_out, y)
 
-        grad_w3 = np.dot(grad_oa.transpose(), self._hs2)
-        grad_b3 = np.sum(grad_oa, axis=0)
+        grad_w3 = np.dot(grad_oa.transpose(), self._hs2) / self.batch_size
+        grad_b3 = np.sum(grad_oa, axis=0) / self.batch_size
 
         # then pass to the second hidden layer
         grad_hs2 = np.dot(grad_oa, self.w3)
         grad_ha2 = np.multiply(grad_hs2, relu_derivative(self._ha2))
 
-        grad_w2 = np.dot(grad_ha2.transpose(), self._hs1)
-        grad_b2 = np.sum(grad_ha2, axis=0)
+        grad_w2 = np.dot(grad_ha2.transpose(), self._hs1) / self.batch_size
+        grad_b2 = np.sum(grad_ha2, axis=0) / self.batch_size
 
         # then pass to the first hidden layer
         grad_hs1 = np.dot(grad_ha2, self.w2)
         grad_ha1 = np.multiply(grad_hs1, relu_derivative(self._ha1))
 
-        grad_w1 = np.dot(grad_ha1.transpose(), x)
-        grad_b1 = np.sum(grad_ha1, axis=0)
+        grad_w1 = np.dot(grad_ha1.transpose(), x) / self.batch_size
+        grad_b1 = np.sum(grad_ha1, axis=0) / self.batch_size
 
         return grad_w1, grad_b1, grad_w2, grad_b2, grad_w3, grad_b3
 
