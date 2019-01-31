@@ -225,7 +225,7 @@ class NN:
         prediction = np.multiply(self._out, onehot_matrix(self.nb_out, y))
         precision = np.max(prediction, axis=1)
         # https://stackoverflow.com/a/52209380
-        loggg = precision
+        loggg = np.log2(precision)
         #loggg = np.log2(precision, out=np.zeros_like(precision), where=(precision != 0))
         log_err = np.multiply(loggg, -1)
         return np.mean(log_err)
