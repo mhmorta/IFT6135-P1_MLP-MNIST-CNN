@@ -30,16 +30,15 @@ class Test(unittest.TestCase):
         print("\nError rate: ", 1 - np.mean(prediction == expected))
         plot_decision_boundary(perceptron, test_data)
 
-
     def test_moon_validate_gradient(self):
         train_data, test_data = two_moon_dataset()
         perceptron = NN(epochs=1, hidden_dims=[50, 20], mu=0.05, validate_gradient=True)
         perceptron.train(train_data)
 
     def test_mnist(self):
-        f = gzip.open('mlp/datasets/mnist.pkl.gz')
-        # encoding='latin1' --> https://stackoverflow.com/a/41366785
-        data = pickle.load(f, encoding='latin1')
+        with gzip.open('mlp/datasets/mnist.pkl.gz') as f:
+            # encoding='latin1' --> https://stackoverflow.com/a/41366785
+            data = pickle.load(f, encoding='latin1')
 
         x_train = data[0][0]
         y_train = data[0][1]
@@ -70,7 +69,8 @@ class Test(unittest.TestCase):
 
 
 def two_moon_dataset():
-    data = np.loadtxt(open('mlp/datasets/2moons.txt', 'r'))
-    np.random.shuffle(data)
-    train_data, test_data = np.vsplit(data, 2)
+    with open('mlp/datasets/2moons.txt', 'r') as f:
+        data = np.loadtxt(f)
+        np.random.shuffle(data)
+        train_data, test_data = np.vsplit(data, 2)
     return train_data, test_data

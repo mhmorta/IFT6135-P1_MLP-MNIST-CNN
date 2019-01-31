@@ -4,8 +4,10 @@ from matplotlib import pyplot as plt
 
 # todo why safe?
 def safe_softmax(v):
+    # v is a vector
     exps = np.exp(v - np.max(v))
-    return exps / np.sum(exps)
+    res = exps / np.sum(exps)
+    return res
 
 
 def safe_softmax_matrix(m):

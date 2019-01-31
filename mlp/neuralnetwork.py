@@ -3,12 +3,12 @@ from .utils import random_uniform, safe_softmax_matrix, relu, onehot_matrix, one
 import pickle
 
 
-class NN(object):
+class NN:
     """
     Realisation of the 2-layer neural network that uses numpy matrix methods
     """
 
-    def __init__(self, hidden_dims=(500, 500),  mu=0.01, epochs=100, batch_size=50, grad_threshold=0.02, validate_gradient=False, debug=False):
+    def __init__(self, hidden_dims=(500, 500), mu=0.01, epochs=100, batch_size=50, grad_threshold=0.02, validate_gradient=False, debug=False, param_init='normal'):
         self.nb_hidden1, self.nb_hidden2 = hidden_dims
         self.mu = mu
         self.epochs = epochs
@@ -17,6 +17,7 @@ class NN(object):
         self.nb_samples = 0
         self.epsilon = 1e-5  # default gradient verification step
         self.train_data = None  # features from training data
+        self.param_init = param_init
 
         self.w3 = None
         self.w2 = None
@@ -41,6 +42,7 @@ class NN(object):
         self.validation_data = None
         self.test_data = None
         self.debug = debug
+        print('Using weight initialization:', param_init)
 
     def description(self):
         return "{0} : nb_hidden1={1}, nb_hidden2={2}, learn.rate={3}, epochs={4}, batch={5}\n".format(
@@ -58,9 +60,17 @@ class NN(object):
         :param j: number of columns
         :return: two-dimensional numpy array
         """
-        # todo why max to max?
-        max_val = 1 / np.sqrt(j)
-        return np.array([[random_uniform(-max_val, max_val) for _ in range(j)] for _ in range(i)])
+        if self.param_init == 'working':
+            max_val = 1 / np.sqrt(j)
+            return np.array([[random_uniform(-max_val, max_val) for _ in range(j)] for _ in range(i)])
+        elif self.param_init == 'zeros':
+            weights = np.zeros((i, j))
+        elif self.param_init == 'normal':
+            weights = np.array([[np.random.normal(0, 1) for _ in range(j)] for _ in range(i)])
+        elif self.param_init == 'glorot':
+            d = np.sqrt(6 / (i + j))
+            weights = np.array([[random_uniform(-d, d) for _ in range(j)] for _ in range(i)])
+        return weights
 
     def init_bias(self, i):
         return np.zeros(i)
@@ -80,26 +90,24 @@ class NN(object):
         self.b1 = self.init_bias(self.nb_hidden1)
         # train
         report = None
-        if self.debug:
-            report = open(self.report_file_name, 'w')
-            report.write("epoch,train_error,train_avg_loss,valid_error,valid_avg_loss,test_error,test_avg_loss\n")
-        for epoch in range(self.epochs):
-            #
+        with open(self.report_file_name, 'w') as report:
             if self.debug:
-                self.evaluate_and_log(epoch, report)
-            # split the data into mini-batches and train the network for the each batch
-            np.random.shuffle(self.train_data)
-            for i in range(0, self.nb_samples, self.batch_size):
-                batch = self.train_data[i:i + self.batch_size]
-                self.train_batch(batch)
-
-        if report is not None:
-            report.close()
+                report.write("epoch,train_error,train_avg_loss,valid_error,valid_avg_loss,test_error,test_avg_loss\n")
+            for epoch in range(self.epochs):
+                if self.debug:
+                    self.evaluate_and_log(epoch, report)
+                # split the data into mini-batches and train the network for the each batch
+                #todo return shuffle
+                #np.random.shuffle(self.train_data)
+                for i in range(0, self.nb_samples, self.batch_size):
+                    batch = self.train_data[i:i + self.batch_size]
+                    self.train_batch(batch)
 
     def evaluate_and_log(self, epoch, report_file):
         stats = [epoch]
         print("\nEpoch: ", epoch)
         for name, data in [('train', self.train_data), ('validation', self.validation_data)]:
+            #data: n X 784 + 1
             if data is not None:
                 prediction = self.compute_predictions(data[:, :-1])  # pass only the features without labels
                 expected = data[:, -1].astype(int)  # labels
@@ -116,8 +124,8 @@ class NN(object):
         report_file.write(','.join(map(str, stats)) + '\n')
 
     def load_state(self, params_file):
-        f = open(params_file, 'rb')
-        state = pickle.load(f)
+        with open(params_file, 'rb') as f:
+            state = pickle.load(f)
         for attr in state.items():
             self.__setattr__(attr[0], attr[1])
 
@@ -134,8 +142,8 @@ class NN(object):
         print("\nSaving classifier configuration ----------------------------")
         for param in attributes.items():
             print(param)
-        f = open(params_file, 'wb')
-        pickle.dump(attributes, f)
+        with open(params_file, 'wb') as f:
+            pickle.dump(attributes, f)
 
     def train_batch(self, batch):
         x = batch[:, :-1]
@@ -187,8 +195,9 @@ class NN(object):
                 summ = np.abs(calculated_gradient) + np.abs(estimated_gradient)
                 if summ != 0:
                     grad_error = diff / summ
-                    print("\nGradient error: ", grad_error)
                     if grad_error > self.grad_threshold:
+                        #todo shift up 'Gradient error'
+                        print("\nGradient error: ", grad_error)
                         print("\nEstimated gradient: ", estimated_gradient)
                         print("\nCalculated gradient: ", calculated_gradient)
                         raise Exception("\nGradient diff is too big: ", grad_error)
@@ -209,19 +218,23 @@ class NN(object):
     def average_loss(self, y):
         """
         Compute the average loss function
-        :param y: numpy array of the expected classes
+        :param y: numpy array of the expected classes [5, 0, 4, ...] of size n
         :return:
         """
+        # self._out: 5000 x 10, onehot_matrix: 5000 x 10
         prediction = np.multiply(self._out, onehot_matrix(self.nb_out, y))
         precision = np.max(prediction, axis=1)
-        log_err = np.multiply(np.log(precision), -1)
+        # https://stackoverflow.com/a/52209380
+        loggg = precision
+        #loggg = np.log2(precision, out=np.zeros_like(precision), where=(precision != 0))
+        log_err = np.multiply(loggg, -1)
         return np.mean(log_err)
 
     def forward(self, x):
         """
         walk forward from input layer x to output layer
         """
-        self._ha1 = np.dot(x, self.w1.transpose()) + self.b1 # first hidden layer activation
+        self._ha1 = np.dot(x, self.w1.transpose()) + self.b1  # first hidden layer activation
         self._hs1 = self.activation(self._ha1)  # first hidden layer output
 
         self._ha2 = np.dot(self._hs1, self.w2.transpose()) + self.b2 # second hidden layer activation

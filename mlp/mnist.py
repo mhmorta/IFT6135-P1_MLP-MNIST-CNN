@@ -6,9 +6,9 @@ import pickle
 import os
 os.system("taskset -p 0xff %d" % os.getpid())
 
-f = gzip.open('datasets/mnist.pkl.gz')
-# encoding='latin1' --> https://stackoverflow.com/a/41366785
-data = pickle.load(f, encoding='latin1')
+with gzip.open('datasets/mnist.pkl.gz') as f:
+    # encoding='latin1' --> https://stackoverflow.com/a/41366785
+    data = pickle.load(f, encoding='latin1')
 
 x_train = data[0][0]
 y_train = data[0][1]
