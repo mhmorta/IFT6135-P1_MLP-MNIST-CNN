@@ -78,18 +78,27 @@ class NN:
     def train(self, train_data):
         # initialize the weight matrices and bias arrays
         self.train_data = train_data
+        #50 000
         self.nb_samples = np.shape(self.train_data)[0]
+        # 10
         classes = train_data[:, -1].astype(int)  # convert labels to integers
+        # 784
         nb_features = np.shape(train_data)[1] - 1  # exclude the last column which contains the labels
+        # 10
         self.nb_out = np.unique(classes).size  # number neurons in the output layer == number of the classes
+        # 10x200
         self.w3 = self.initialize_weights(self.nb_out, self.nb_hidden2)
+        # 200x1000
         self.w2 = self.initialize_weights(self.nb_hidden2, self.nb_hidden1)
+        # 1000x784
         self.w1 = self.initialize_weights(self.nb_hidden1, nb_features)
+        # 10
         self.b3 = self.init_bias(self.nb_out)
+        # 200
         self.b2 = self.init_bias(self.nb_hidden2)
+        # 1000
         self.b1 = self.init_bias(self.nb_hidden1)
         # train
-        report = None
         with open(self.report_file_name, 'w') as report:
             if self.debug:
                 report.write("epoch,train_error,train_avg_loss,valid_error,valid_avg_loss,test_error,test_avg_loss\n")
@@ -107,7 +116,7 @@ class NN:
         stats = [epoch]
         print("\nEpoch: ", epoch)
         for name, data in [('train', self.train_data), ('validation', self.validation_data)]:
-            #data: n X 784 + 1
+            # data: 50000 X 784 + 1
             if data is not None:
                 prediction = self.compute_predictions(data[:, :-1])  # pass only the features without labels
                 expected = data[:, -1].astype(int)  # labels
@@ -221,26 +230,32 @@ class NN:
         :param y: numpy array of the expected classes [5, 0, 4, ...] of size n
         :return:
         """
-        # self._out: 5000 x 10, onehot_matrix: 5000 x 10
-        prediction = np.multiply(self._out, onehot_matrix(self.nb_out, y))
-        precision = np.max(prediction, axis=1)
+        # self._out: 50000 x 10, onehot_matrix: 50000 x 10
+        # since log_2(0) in entropy is defined as 0, we resolve to this trick
+        logged_y_hat = np.log2(self._out, out=np.zeros_like(self._out), where=(self._out != 0))
+        prediction = np.multiply(logged_y_hat, onehot_matrix(self.nb_out, y))
         # https://stackoverflow.com/a/52209380
-        loggg = np.log2(precision)
-        #loggg = np.log2(precision, out=np.zeros_like(precision), where=(precision != 0))
-        log_err = np.multiply(loggg, -1)
-        return np.mean(log_err)
+        prediction = np.sum(prediction, axis=1)
+        prediction = -1 * prediction
+        return np.mean(prediction)
 
     def forward(self, x):
         """
         walk forward from input layer x to output layer
         """
+        # x: 50000 x 784
+        # w1: 1000 x 784
+        # _ha1: 5000 x 1000
+        # _hs1: 5000 x 1000
         self._ha1 = np.dot(x, self.w1.transpose()) + self.b1  # first hidden layer activation
         self._hs1 = self.activation(self._ha1)  # first hidden layer output
-
+        # _ha2: 50000 x 200
+        # _hs2: 50000 x 200
         self._ha2 = np.dot(self._hs1, self.w2.transpose()) + self.b2 # second hidden layer activation
         self._hs2 = self.activation(self._ha2)  # second hidden layer output
-
+        # 50000 x 10
         oa = np.dot(self._hs2, self.w3.transpose()) + self.b3 # output layer activation
+        # 5000 x 10
         self._out = self.softmax(oa)  # network output
 
     def activation(self, input):
@@ -291,7 +306,7 @@ class NN:
     def compute_predictions(self, test_data):
         # return the most probable class
         self.forward(test_data)
-        #todo give out only one element
+        # todo give out only one element
         return np.argmax(self._out, axis=1)  # we assume that the index == class
 
 

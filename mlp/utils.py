@@ -9,7 +9,6 @@ def safe_softmax(v):
     res = exps / np.sum(exps)
     return res
 
-
 def safe_softmax_matrix(m):
     return np.array([safe_softmax(v) for v in m])
 
