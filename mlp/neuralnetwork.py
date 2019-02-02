@@ -1,15 +1,14 @@
 import numpy as np
-from .utils import random_uniform, safe_softmax_matrix, relu, onehot_matrix, one_hot, safe_softmax, relu_derivative
+from .utils import safe_softmax_matrix, relu, onehot_matrix, relu_derivative
 import pickle
 
-# raise numpy errors (instead of warnings) for over/underflows
-np.seterr(all='raise')
+
 class NN:
     """
     Realisation of the 2-layer neural network that uses numpy matrix methods
     """
 
-    def __init__(self, hidden_dims=(500, 500), mu=0.01, epochs=100, batch_size=50, grad_threshold=0.02, validate_gradient=False, debug=False, param_init='normal'):
+    def __init__(self, hidden_dims=(500, 500), mu=None, epochs=100, batch_size=50, grad_threshold=0.02, validate_gradient=False, debug=False, weight_init='glorot'):
         self.nb_hidden1, self.nb_hidden2 = hidden_dims
         self.mu = mu
         self.epochs = epochs
@@ -18,7 +17,7 @@ class NN:
         self.nb_samples = 0
         self.epsilon = 1e-5  # default gradient verification step
         self.train_data = None  # features from training data
-        self.param_init = param_init
+        self.weight_init = weight_init
 
         self.w3 = None
         self.w2 = None
@@ -43,7 +42,11 @@ class NN:
         self.validation_data = None
         self.test_data = None
         self.debug = debug
-        print('Using weight initialization:', param_init)
+        print('======')
+        print('weight_init:', weight_init)
+        print('mu:', mu)
+        print('hidden_dims:', hidden_dims)
+        print('======')
 
     def description(self):
         return "{0} : nb_hidden1={1}, nb_hidden2={2}, learn.rate={3}, epochs={4}, batch={5}\n".format(
@@ -61,16 +64,13 @@ class NN:
         :param j: number of columns
         :return: two-dimensional numpy array
         """
-        if self.param_init == 'working':
-            max_val = 1 / np.sqrt(j)
-            return np.array([[random_uniform(-max_val, max_val) for _ in range(j)] for _ in range(i)])
-        elif self.param_init == 'zeros':
+        if self.weight_init == 'zeros':
             weights = np.zeros((i, j))
-        elif self.param_init == 'normal':
-            weights = np.array([[np.random.normal(0, 1) for _ in range(j)] for _ in range(i)])
-        elif self.param_init == 'glorot':
+        elif self.weight_init == 'normal':
+            weights = np.array(np.random.normal(0, 1, (i, j)))
+        elif self.weight_init == 'glorot':
             d = np.sqrt(6 / (i + j))
-            weights = np.array([[random_uniform(-d, d) for _ in range(j)] for _ in range(i)])
+            weights = np.random.uniform(-d, d, (i, j))
         return weights
 
     def init_bias(self, i):
@@ -261,6 +261,8 @@ class NN:
         oa = np.dot(self._hs2, self.w3.transpose()) + self.b3  # output layer activation
         # 5000 x 10
         self._out = self.softmax(oa)  # network output
+        if np.isnan(self._out).any():
+            print('nans, put a debug point here')
 
     def activation(self, input):
         return relu(input)
@@ -312,6 +314,3 @@ class NN:
         self.forward(test_data)
         # todo give out only one element
         return np.argmax(self._out, axis=1)  # we assume that the index == class
-
-
-

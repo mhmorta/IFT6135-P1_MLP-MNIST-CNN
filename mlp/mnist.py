@@ -23,7 +23,7 @@ train_data = np.append(x_train, y_train[..., None], axis=1)
 validation_data = np.append(x_valid, y_valid[..., None], axis=1)
 test_data = np.append(x_test, y_test[..., None], axis=1)
 
-perceptron = NN(epochs=20, hidden_dims=[1000, 200], mu=0.1, batch_size=100, debug=True)
+perceptron = NN(epochs=20, hidden_dims=[1000, 200], mu=0.01, batch_size=100, debug=True)
 perceptron.test_data = test_data
 perceptron.validation_data = validation_data
 

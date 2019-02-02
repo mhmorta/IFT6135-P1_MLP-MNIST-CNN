@@ -2,19 +2,15 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-# todo why safe?
 def safe_softmax(v):
     # v is a vector
     exps = np.exp(v - np.max(v))
     res = exps / np.sum(exps)
     return res
 
+
 def safe_softmax_matrix(m):
     return np.array([safe_softmax(v) for v in m])
-
-
-def random_uniform(min_val, max_val):
-    return np.random.uniform(min_val, max_val, 1)[0]
 
 
 def relu(x):
@@ -31,8 +27,12 @@ def one_hot(m, y):
 
 
 def relu_derivative(x):
-    x[x <= 0] = 0
-    x[x > 0] = 1
+    try:
+        with np.errstate(all='raise'):
+            x[x <= 0] = 0
+            x[x > 0] = 1
+    except Exception:
+        print('Warning detected. Could be caused by high learning rate', 'x:', x)
     return x
 
 
