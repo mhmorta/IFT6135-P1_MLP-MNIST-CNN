@@ -2,7 +2,8 @@ import numpy as np
 from .utils import random_uniform, safe_softmax_matrix, relu, onehot_matrix, one_hot, safe_softmax, relu_derivative
 import pickle
 
-
+# raise numpy errors (instead of warnings) for over/underflows
+np.seterr(all='raise')
 class NN:
     """
     Realisation of the 2-layer neural network that uses numpy matrix methods
@@ -245,16 +246,19 @@ class NN:
         """
         # x: 50000 x 784
         # w1: 1000 x 784
-        # _ha1: 5000 x 1000
-        # _hs1: 5000 x 1000
+        # b1: 1000
+        # _ha1: 50000 x 1000
+        # _hs1: 50000 x 1000
         self._ha1 = np.dot(x, self.w1.transpose()) + self.b1  # first hidden layer activation
         self._hs1 = self.activation(self._ha1)  # first hidden layer output
+        # w2: 200 x 1000
+        # b2: 200
         # _ha2: 50000 x 200
         # _hs2: 50000 x 200
-        self._ha2 = np.dot(self._hs1, self.w2.transpose()) + self.b2 # second hidden layer activation
+        self._ha2 = np.dot(self._hs1, self.w2.transpose()) + self.b2  # second hidden layer activation
         self._hs2 = self.activation(self._ha2)  # second hidden layer output
         # 50000 x 10
-        oa = np.dot(self._hs2, self.w3.transpose()) + self.b3 # output layer activation
+        oa = np.dot(self._hs2, self.w3.transpose()) + self.b3  # output layer activation
         # 5000 x 10
         self._out = self.softmax(oa)  # network output
 
