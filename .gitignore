@@ -3,3 +3,4 @@ venv/
 */__pycache__/*
 /MNIST/data
 .ipynb_checkpoints
+.csv#
