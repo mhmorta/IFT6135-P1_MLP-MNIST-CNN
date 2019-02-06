@@ -32,7 +32,7 @@ class Test(unittest.TestCase):
 
     def test_moon_validate_gradient(self):
         train_data, test_data = two_moon_dataset()
-        perceptron = NN(epochs=1, hidden_dims=[50, 20], mu=0.05, validate_gradient=True)
+        perceptron = NN(epochs=1, hidden_dims=[50, 20], mu=0.1, batch_size=1, weight_init='glorot', validate_gradient=True, epsilon=1e-5)
         perceptron.train(train_data)
 
     def test_mnist(self):

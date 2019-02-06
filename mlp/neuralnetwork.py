@@ -8,14 +8,14 @@ class NN:
     Realisation of the 2-layer neural network that uses numpy matrix methods
     """
 
-    def __init__(self, hidden_dims=(500, 500), mu=None, epochs=100, batch_size=50, grad_threshold=0.02, validate_gradient=False, debug=False, weight_init='glorot'):
+    def __init__(self, hidden_dims=(500, 500), mu=None, epochs=100, batch_size=50, grad_threshold=0.02, validate_gradient=False, debug=False, weight_init='glorot', epsilon = 1e-5):
         self.nb_hidden1, self.nb_hidden2 = hidden_dims
         self.mu = mu
         self.epochs = epochs
         self.grad_threshold = grad_threshold
         self.nb_out = 0
         self.nb_samples = 0
-        self.epsilon = 1e-5  # default gradient verification step
+        self.epsilon = epsilon  # default gradient verification step
         self.train_data = None  # features from training data
         self.weight_init = weight_init
 
@@ -71,6 +71,9 @@ class NN:
         elif self.weight_init == 'glorot':
             d = np.sqrt(6 / (i + j))
             weights = np.random.uniform(-d, d, (i, j))
+        else:
+            # normal random initialization by default if not specified
+            weights = np.array(np.random.normal(0, 1, (i, j)))
         return weights
 
     def init_bias(self, i):
@@ -177,24 +180,40 @@ class NN:
         # calculate finite gradient
         model_parameters = ['w1', 'b1', 'w2', 'b2', 'w3', 'b3']
         for pidx, pname in enumerate(model_parameters):
+
+            # validate gradient for the second layer only
+            if pname not in {'w2', 'b2'}: continue
+
             # Get the actual parameter value by it's name, e.g. w1, w2 etc
             parameter = self.__getattribute__(pname)
-            # Iterate over each element of the parameter matrix, e.g. (0,0), (0,1), ...
-            #TODO ask?
+
+            # Iterate over each element of the parameter matrix,
+            # method returns indexes (i, j) of each element e.g. (0,0), (0,1), ...
             it = np.nditer(parameter, flags=['multi_index'], op_flags=['readwrite'])
-            while not it.finished:
+
+            # verify only 10 parameters
+            verified = 0
+            while not it.finished and verified < 10:
+
+                verified += 1
+
+                # ix = (i, j)
                 ix = it.multi_index
+
                 # Save the original value so we can reset it later
                 original_value = parameter[ix]
+
                 # Estimate the gradient using (f(x+h) - f(x-h))/2h
                 # calculate the empirical error for x+h
                 parameter[ix] = original_value + self.epsilon
                 self.forward(x)
-                grad_plus = self.empirical_error(y)
+                grad_plus = self.average_loss(y)
+
                 # calculate the empirical error for x-h
                 parameter[ix] = original_value - self.epsilon
                 self.forward(x)
-                grad_minus = self.empirical_error(y)
+                grad_minus = self.average_loss(y)
+
                 # Reset parameter to original value
                 parameter[ix] = original_value
 
@@ -202,43 +221,33 @@ class NN:
                 estimated_gradient = (grad_plus - grad_minus) / (2 * self.epsilon)
                 calculated_gradient = backprop_gradient[pidx][ix]
                 diff = np.abs(calculated_gradient - estimated_gradient)
-                summ = np.abs(calculated_gradient) + np.abs(estimated_gradient)
-                if summ != 0:
-                    grad_error = diff / summ
-                    if grad_error > self.grad_threshold:
-                        #todo shift up 'Gradient error'
-                        print("\nGradient error: ", grad_error)
-                        print("\nEstimated gradient: ", estimated_gradient)
-                        print("\nCalculated gradient: ", calculated_gradient)
-                        raise Exception("\nGradient diff is too big: ", grad_error)
+                print(pname + " gradient diff: ", diff)
+
+                # throw an error if the gradient diff is too big
+                summ = np.abs(calculated_gradient + estimated_gradient)
+
+                grad_error = diff / summ if summ != 0 else 0
+                if grad_error > self.grad_threshold:
+                    print("------------- error ---------------")
+                    print(pname + " gradient error: ", grad_error)
+                    print(pname + " estimated gradient: ", estimated_gradient)
+                    print(pname + " calculated gradient: ", calculated_gradient)
+                    raise Exception("gradient error %f is above threshold %f" % (grad_error, self.grad_threshold))
                 it.iternext()
 
-    def empirical_error(self, y):
+    def average_loss(self, y):
         """
-        Compute regularized empirical error
+        Compute cross-entropy (log-loss) loss function
         :param y: numpy array of the expected classes
         :return:
         """
         prediction = np.multiply(self._out, onehot_matrix(self.nb_out, y))
         precision = np.max(prediction, axis=1)
-        log_err = np.multiply(np.log(precision), -1)
+        # safe log, will return 0 for log(0)
+        log_precision = np.log(precision, out=np.zeros_like(precision), where=(precision != 0))
+        log_err = np.multiply(log_precision, -1)
         err = np.mean(log_err)
         return err
-
-    def average_loss(self, y):
-        """
-        Compute the average loss function
-        :param y: numpy array of the expected classes [5, 0, 4, ...] of size n
-        :return:
-        """
-        # self._out: 50000 x 10, onehot_matrix: 50000 x 10
-        # since log_2(0) in entropy is defined as 0, we resolve to this trick
-        logged_y_hat = np.log2(self._out, out=np.zeros_like(self._out), where=(self._out != 0))
-        prediction = np.multiply(logged_y_hat, onehot_matrix(self.nb_out, y))
-        # https://stackoverflow.com/a/52209380
-        prediction = np.sum(prediction, axis=1)
-        prediction = -1 * prediction
-        return np.mean(prediction)
 
     def forward(self, x):
         """
