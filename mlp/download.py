@@ -35,5 +35,5 @@ if __name__ == '__main__':
         local_filename = os.path.join(args.savedir, mnist_filename_all)
         urllib.request.urlretrieve(
             "{}/{}.gz".format(path, mnist_filename_all), local_filename + '.gz')
-        tr, va, te = pickle.load(gzip.open(local_filename + '.gz', 'r'))
-        np.save(open(local_filename + '.npy', 'w'), (tr, va, te))
+        tr, va, te = pickle.load(gzip.open(local_filename + '.gz', 'r'), encoding='latin1')
+        np.save(local_filename, (tr, va, te))
