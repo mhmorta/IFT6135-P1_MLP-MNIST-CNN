@@ -8,6 +8,8 @@ from torchvision import datasets, transforms
 from torchsummary import summary
 
 
+## The total number of parameters of this model with two convolutional layers is: 634,058
+
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -15,10 +17,6 @@ class Net(nn.Module):
         self.conv2 = nn.Conv2d(64, 64, 5, 1)
         self.fc1 = nn.Linear(4*4*64, 512)
         self.fc2 = nn.Linear(512, 10)
-        # self.conv1 = nn.Conv2d(1, 128, 5, 1)
-        # self.conv2 = nn.Conv2d(128, 128, 5, 1)
-        # self.fc1 = nn.Linear(4*4*128, 10)
-        #self.fc2 = nn.Linear(500, 10)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
@@ -106,19 +104,16 @@ def main():
                        ])),
         batch_size=args.test_batch_size, shuffle=True, **kwargs)
 
-    # imgs, steering_angle = next(iter(train_loader))
-    # im = imgs[0].numpy()
-    # print (im.shape)
     model = Net().to(device)
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
     summary(model, (1, 28, 28))
-
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         test(args, model, device, test_loader)
 
     if (args.save_model):
-        torch.save(model.state_dict(),"mnist_cnn.pt")
+        torch.save(model.state_dict(),"MNIST.pt")
         
 if __name__ == '__main__':
 	main()
