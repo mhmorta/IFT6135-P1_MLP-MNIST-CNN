@@ -42,7 +42,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.item()))
 
-def test(args, model, device, test_loader):
+def eval(args, model, device, test_loader):
     model.eval()
     test_loss = 0
     correct = 0
@@ -50,8 +50,8 @@ def test(args, model, device, test_loader):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item() # sum up batch loss
-            pred = output.argmax(dim=1, keepdim=True) # get the index of the max log-probability
+            test_loss += F.nll_loss(output, target, reduction='sum').item() 
+            pred = output.argmax(dim=1, keepdim=True)
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
@@ -110,7 +110,7 @@ def main():
     
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
-        test(args, model, device, test_loader)
+        eval(args, model, device, test_loader)
 
     if (args.save_model):
         torch.save(model.state_dict(),"MNIST.pt")
