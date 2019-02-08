@@ -8,7 +8,7 @@ class NN:
     Realisation of the 2-layer neural network that uses numpy matrix methods
     """
 
-    def __init__(self, hidden_dims=(500, 500), mu=None, epochs=100, batch_size=50, grad_threshold=0.02, validate_gradient=False, debug=False, weight_init='glorot', epsilon = 1e-5):
+    def __init__(self, hidden_dims=(500, 500), mu=None, epochs=100, batch_size=50, grad_threshold=0.02, validate_gradient=False, debug=False, weight_init='glorot', epsilon=1e-5):
         self.nb_hidden1, self.nb_hidden2 = hidden_dims
         self.mu = mu
         self.epochs = epochs
@@ -72,8 +72,7 @@ class NN:
             d = np.sqrt(6 / (i + j))
             weights = np.random.uniform(-d, d, (i, j))
         else:
-            # normal random initialization by default if not specified
-            weights = np.array(np.random.normal(0, 1, (i, j)))
+            weights = None
         return weights
 
     def init_bias(self, i):
@@ -110,8 +109,7 @@ class NN:
                 if self.debug:
                     self.evaluate_and_log(epoch, report)
                 # split the data into mini-batches and train the network for the each batch
-                #todo return shuffle
-                #np.random.shuffle(self.train_data)
+                np.random.shuffle(self.train_data)
                 for i in range(0, self.nb_samples, self.batch_size):
                     batch = self.train_data[i:i + self.batch_size]
                     self.train_batch(batch)
@@ -178,12 +176,8 @@ class NN:
         :raises: exception if the calculated algorithm is too different from empirical
         """
         # calculate finite gradient
-        model_parameters = ['w1', 'b1', 'w2', 'b2', 'w3', 'b3']
+        model_parameters = ['w2', 'b2']
         for pidx, pname in enumerate(model_parameters):
-
-            # validate gradient for the second layer only
-            if pname not in {'w2', 'b2'}: continue
-
             # Get the actual parameter value by it's name, e.g. w1, w2 etc
             parameter = self.__getattribute__(pname)
 
@@ -219,7 +213,7 @@ class NN:
 
                 # verify gradient
                 estimated_gradient = (grad_plus - grad_minus) / (2 * self.epsilon)
-                calculated_gradient = backprop_gradient[pidx][ix]
+                calculated_gradient = backprop_gradient[pidx+2][ix]
                 diff = np.abs(calculated_gradient - estimated_gradient)
                 print(pname + " gradient diff: ", diff)
 
@@ -243,7 +237,7 @@ class NN:
         """
         prediction = np.multiply(self._out, onehot_matrix(self.nb_out, y))
         precision = np.max(prediction, axis=1)
-        # safe log, will return 0 for log(0)
+        # cross-entropy log, will return 0 for log(0)
         log_precision = np.log(precision, out=np.zeros_like(precision), where=(precision != 0))
         log_err = np.multiply(log_precision, -1)
         err = np.mean(log_err)
@@ -281,36 +275,47 @@ class NN:
 
     def backward(self, x, y):
         """
-        Backpropagation algorithm realisation for 3-layer network
+        Backpropagation algorithm realisation for a 3-layer network
         :param x: numpy array of the features
         :param y: numpy array of the expected classes
         :return:
         """
+        # Nice summary of the involved equations:
+        # https://youtu.be/_KoWTD8T45Q?list=PL6Xpj9I5qXYEcOhn7TqghAJ6NAPrNmUBH&t=91
+
         # calculate gradients
         # start from the output layer
+        # https://youtu.be/1N837i4s1T8
         grad_oa = self._out - onehot_matrix(self.nb_out, y)
 
-        grad_w3 = np.dot(grad_oa.transpose(), self._hs2) / self.batch_size
-        grad_b3 = np.sum(grad_oa, axis=0) / self.batch_size
+        grad_oa /= self.batch_size
+
+        # loss gradient at parameters: https://youtu.be/p5tL2JqCRDo
+        grad_w3 = np.dot(grad_oa.transpose(), self._hs2)
+        grad_b3 = np.sum(grad_oa, axis=0)
+
+        # loss gradient at hidden layers: activation and pre-activation
 
         # then pass to the second hidden layer
+        # https://youtu.be/xFhM_Kwqw48
         grad_hs2 = np.dot(grad_oa, self.w3)
         grad_ha2 = np.multiply(grad_hs2, relu_derivative(self._ha2))
 
-        grad_w2 = np.dot(grad_ha2.transpose(), self._hs1) / self.batch_size
-        grad_b2 = np.sum(grad_ha2, axis=0) / self.batch_size
+        grad_w2 = np.dot(grad_ha2.transpose(), self._hs1)
+        grad_b2 = np.sum(grad_ha2, axis=0)
 
         # then pass to the first hidden layer
+        # https://youtu.be/xFhM_Kwqw48
         grad_hs1 = np.dot(grad_ha2, self.w2)
         grad_ha1 = np.multiply(grad_hs1, relu_derivative(self._ha1))
 
-        grad_w1 = np.dot(grad_ha1.transpose(), x) / self.batch_size
-        grad_b1 = np.sum(grad_ha1, axis=0) / self.batch_size
+        grad_w1 = np.dot(grad_ha1.transpose(), x)
+        grad_b1 = np.sum(grad_ha1, axis=0)
 
         return grad_w1, grad_b1, grad_w2, grad_b2, grad_w3, grad_b3
 
     def update_parameters(self, grad_w1, grad_b1, grad_w2, grad_b2, grad_w3, grad_b3):
-        # update network parameters W1, W2, b1 and b2
+        # update network parameters
         self.w3 -= self.mu * grad_w3
         self.b3 -= self.mu * grad_b3
         self.w2 -= self.mu * grad_w2
@@ -321,5 +326,4 @@ class NN:
     def compute_predictions(self, test_data):
         # return the most probable class
         self.forward(test_data)
-        # todo give out only one element
         return np.argmax(self._out, axis=1)  # we assume that the index == class

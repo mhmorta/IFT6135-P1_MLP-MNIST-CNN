@@ -61,7 +61,7 @@ class Test(unittest.TestCase):
         perceptron.train(train_data)
         stop = time.time()
         print("Time: %s" % (stop - start))
-        #perceptron.save_state("mnist.pkl")
+        #perceptron.save_state("datasets/mnist.pkl")
 
         prediction = perceptron.compute_predictions(test_data[:, :-1])  # pass only the features without labels
         expected = test_data[:, -1].astype(int)  # labels
