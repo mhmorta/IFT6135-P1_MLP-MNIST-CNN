@@ -1,6 +1,7 @@
 import numpy as np
 from .utils import safe_softmax_matrix, relu, onehot_matrix, relu_derivative
 import pickle
+import math
 
 
 class NN:
@@ -8,13 +9,12 @@ class NN:
     Realisation of the 2-layer neural network that uses numpy matrix methods
     """
     def __init__(self, hidden_dims=(500, 500), mu=None, epochs=None, batch_size=32,
-                 grad_threshold=0.02, validate_gradient=False, debug=False, weight_init='glorot',
+                 validate_gradient=False, debug=False, weight_init='glorot',
                  epsilon=1e-5):
         self.hidden_dims = hidden_dims
         self.nb_hidden1, self.nb_hidden2 = hidden_dims
         self.mu = mu
         self.epochs = epochs
-        self.grad_threshold = grad_threshold
         self.nb_out = 0
         self.nb_samples = 0
         self.epsilon = epsilon  # default gradient verification step
@@ -291,16 +291,16 @@ class NN:
                 diff = np.abs(calculated_gradient - estimated_gradient)
                 print(pname + " gradient diff: ", diff)
 
-                # throw an error if the gradient diff is too big
-                summ = np.abs(calculated_gradient + estimated_gradient)
-
-                grad_error = diff / summ if summ != 0 else 0
-                if grad_error > self.grad_threshold:
+                # http://ufldl.stanford.edu/wiki/index.php/Gradient_checking_and_advanced_optimization
+                # https://www.youtube.com/watch?v=P6EtCVrvYPU
+                # https://www.youtube.com/watch?v=pHMzNW8Agq4
+                if not math.isclose(calculated_gradient, estimated_gradient, abs_tol=self.epsilon):
                     print("------------- error ---------------")
+                    grad_error = np.abs(np.abs(calculated_gradient) - np.abs(estimated_gradient))
                     print(pname + " gradient error: ", grad_error)
                     print(pname + " estimated gradient: ", estimated_gradient)
                     print(pname + " calculated gradient: ", calculated_gradient)
-                    raise Exception("gradient error %f is above threshold %f, epsilon %s" % (grad_error, self.grad_threshold, self.epsilon))
+                    raise RuntimeError("gradient error %f is above threshold set to epsilon %s" % (grad_error, self.epsilon))
                 it.iternext()
 
     def save_state(self, params_file):

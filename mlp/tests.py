@@ -16,10 +16,7 @@ class Test(unittest.TestCase):
             epsilon = 1 / n
             perceptron = NN(epochs=1, hidden_dims=[500, 600], mu=0.1, batch_size=1,
                             weight_init='glorot', validate_gradient=True, epsilon=epsilon)
-            try:
-                perceptron.train(train_data=train_data, nb_classes=10)
-            except Exception as e:
-                print('>>>>>', e)
+            perceptron.train(train_data=train_data, nb_classes=10)
     def test_mnist(self):
         train_data, validation_data, test_data = load_mnist_data()
 
