@@ -7,12 +7,19 @@ import time
 
 class Test(unittest.TestCase):
 
-    def test_moon_validate_gradient(self):
+    def test_validate_gradient(self):
         train_data, _, _ = load_mnist_data()
-        perceptron = NN(epochs=1, hidden_dims=[50, 20], mu=0.1, batch_size=1,
-                        weight_init='glorot', validate_gradient=True, epsilon=1e-5)
-        perceptron.train(train_data=train_data, nb_classes=10)
-
+        I = range(0, 5)
+        K = [1, 5]
+        N = [k*10**i for i in I for k in K]
+        for n in reversed(N):
+            epsilon = 1 / n
+            perceptron = NN(epochs=1, hidden_dims=[500, 600], mu=0.1, batch_size=1,
+                            weight_init='glorot', validate_gradient=True, epsilon=epsilon)
+            try:
+                perceptron.train(train_data=train_data, nb_classes=10)
+            except Exception as e:
+                print('>>>>>', e)
     def test_mnist(self):
         train_data, validation_data, test_data = load_mnist_data()
 

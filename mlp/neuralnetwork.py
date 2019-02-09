@@ -10,6 +10,7 @@ class NN:
     def __init__(self, hidden_dims=(500, 500), mu=None, epochs=None, batch_size=32,
                  grad_threshold=0.02, validate_gradient=False, debug=False, weight_init='glorot',
                  epsilon=1e-5):
+        self.hidden_dims = hidden_dims
         self.nb_hidden1, self.nb_hidden2 = hidden_dims
         self.mu = mu
         self.epochs = epochs
@@ -32,14 +33,14 @@ class NN:
         self._hs1 = None  # hidden layer 1 outputs
 
         self._ha2 = None  # hidden layer 1 activations
-        self._hs2 = None  # hidden layer 1 outputs
+        self._hs2 = None  # hidden layer 1 outpus
 
         self._out = None  # network output layer outputs
         self.validate_gradient = validate_gradient
 
         self.batch_size = batch_size
 
-        self.report_file_name = "report.csv"
+        self.report_file_name = "report_{}.csv".format(self.params_str())
         self.validation_data = None
         self.test_data = None
         self.debug = debug
@@ -48,6 +49,7 @@ class NN:
         print('mu:', mu)
         print('hidden_dims:', hidden_dims)
         print('epochs:', epochs)
+        print('epsilon', epsilon)
         print('======')
 
     def initialize_weights(self, i, j):
@@ -130,11 +132,11 @@ class NN:
         # https://youtu.be/1N837i4s1T8
         grad_oa = self._out - onehot_matrix(self.nb_out, y)
 
-        grad_oa /= self.batch_size
+        #grad_oa /= self.batch_size
 
         # loss gradient at parameters: https://youtu.be/p5tL2JqCRDo
-        grad_w3 = np.dot(grad_oa.transpose(), self._hs2)
-        grad_b3 = np.sum(grad_oa, axis=0)
+        grad_w3 = np.dot(grad_oa.transpose(), self._hs2) / self.batch_size
+        grad_b3 = np.sum(grad_oa, axis=0) / self.batch_size
 
         # loss gradient at hidden layers: activation and pre-activation
 
@@ -143,16 +145,16 @@ class NN:
         grad_hs2 = np.dot(grad_oa, self.w3)
         grad_ha2 = np.multiply(grad_hs2, relu_derivative(self._ha2))
 
-        grad_w2 = np.dot(grad_ha2.transpose(), self._hs1)
-        grad_b2 = np.sum(grad_ha2, axis=0)
+        grad_w2 = np.dot(grad_ha2.transpose(), self._hs1) / self.batch_size
+        grad_b2 = np.sum(grad_ha2, axis=0) / self.batch_size
 
         # then pass to the first hidden layer
         # https://youtu.be/xFhM_Kwqw48
         grad_hs1 = np.dot(grad_ha2, self.w2)
         grad_ha1 = np.multiply(grad_hs1, relu_derivative(self._ha1))
 
-        grad_w1 = np.dot(grad_ha1.transpose(), x)
-        grad_b1 = np.sum(grad_ha1, axis=0)
+        grad_w1 = np.dot(grad_ha1.transpose(), x) / self.batch_size
+        grad_b1 = np.sum(grad_ha1, axis=0) / self.batch_size
 
         return grad_w1, grad_b1, grad_w2, grad_b2, grad_w3, grad_b3
 
@@ -187,7 +189,7 @@ class NN:
         # 1000
         self.b1 = self.init_bias(self.nb_hidden1)
         # train
-        with open(self.report_file_name, 'w') as report:
+        with open('reports/{}'.format(self.report_file_name), 'w') as report:
             if self.debug:
                 report.write("epoch,train_error,train_avg_loss,valid_error,valid_avg_loss,test_error,test_avg_loss\n")
             for epoch in range(self.epochs):
@@ -198,6 +200,8 @@ class NN:
                 for i in range(0, self.nb_samples, self.batch_size):
                     batch = self.train_data[i:i + self.batch_size]
                     self._train_batch(batch)
+                    if self.validate_gradient:
+                        break
 
     def test(self, test_data):
         # return the most probable class
@@ -211,8 +215,11 @@ class NN:
         # Gradient check for each parameter
         backprop_gradient = self.backward(x, y)
         if self.validate_gradient:
-            self._validate_gradient(x, y, backprop_gradient)
-        self.update(*backprop_gradient)
+            from_idx, to_idx = 2, 4
+            model_parameters = ['w1', 'b1', 'w2', 'b2', 'w3', 'b3']
+            self._validate_gradient(x, y, model_parameters[from_idx: to_idx], backprop_gradient[from_idx: to_idx])
+        else:
+            self.update(*backprop_gradient)
 
     def _evaluate_and_log(self, epoch, report_file):
         stats = [epoch]
@@ -234,7 +241,7 @@ class NN:
                 stats.append('')
         report_file.write(','.join(map(str, stats)) + '\n')
 
-    def _validate_gradient(self, x, y, backprop_gradient):
+    def _validate_gradient(self, x, y, model_parameters, backprop_gradient):
         """
         Validate if the gradient calculated by backpropagation algorithm is similar
         to the empirical gradient calculated with finite step epsilon
@@ -244,7 +251,6 @@ class NN:
         :raises: exception if the calculated algorithm is too different from empirical
         """
         # calculate finite gradient
-        model_parameters = ['w2', 'b2']
         for pidx, pname in enumerate(model_parameters):
             # Get the actual parameter value by it's name, e.g. w1, w2 etc
             parameter = self.__getattribute__(pname)
@@ -281,7 +287,7 @@ class NN:
 
                 # verify gradient
                 estimated_gradient = (grad_plus - grad_minus) / (2 * self.epsilon)
-                calculated_gradient = backprop_gradient[pidx+2][ix]
+                calculated_gradient = backprop_gradient[pidx][ix]
                 diff = np.abs(calculated_gradient - estimated_gradient)
                 print(pname + " gradient diff: ", diff)
 
@@ -294,7 +300,7 @@ class NN:
                     print(pname + " gradient error: ", grad_error)
                     print(pname + " estimated gradient: ", estimated_gradient)
                     print(pname + " calculated gradient: ", calculated_gradient)
-                    raise Exception("gradient error %f is above threshold %f" % (grad_error, self.grad_threshold))
+                    raise Exception("gradient error %f is above threshold %f, epsilon %s" % (grad_error, self.grad_threshold, self.epsilon))
                 it.iternext()
 
     def save_state(self, params_file):
@@ -327,3 +333,8 @@ class NN:
             self.mu,
             self.epochs,
             self.batch_size)
+
+    def params_str(self):
+        return "epochs={},hidden_dims={},mu={},batch_size={},weight_init={}".\
+            format(self.epochs,self.hidden_dims,self.mu,self.batch_size,self.weight_init). \
+            replace(" ", "")
