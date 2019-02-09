@@ -4,3 +4,5 @@ venv/
 /MNIST/data
 .ipynb_checkpoints
 .csv#
+Dog-Vs-Cat/output
+.vscode/
