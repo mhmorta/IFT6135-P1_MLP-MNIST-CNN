@@ -17,7 +17,6 @@ for idx, hp in enumerate(reports):
 
 print('Best model with params ', best_model[0], ' has accuracy of ', best_model[1])
 plt.xticks(y_pos, [r.replace(',m','\nm') for r in reports], rotation=90)
-#plt.legend()
 plt.title('Accuracy of different models on validation set')
 plt.xlabel('Hypeparameters')
 plt.ylabel('Accuracy (%)')
