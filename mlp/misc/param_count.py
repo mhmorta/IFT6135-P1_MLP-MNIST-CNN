@@ -1,3 +1,4 @@
+import numpy as np
 def l(input, n_count):
     ret = (input+1) * n_count
     return ret
@@ -17,3 +18,6 @@ print(h1 + h2 + o)
 # [500, 500] -> 648010
 # [600, 700] -> 898710
 # [700, 500] -> 905010
+
+learning_rate = 10 ** np.random.uniform(-6, 1)
+print('learning_rate', learning_rate)
