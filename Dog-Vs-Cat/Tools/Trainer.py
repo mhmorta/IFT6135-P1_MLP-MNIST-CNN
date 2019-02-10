@@ -171,3 +171,22 @@ class Trainer():
                 self.adjust_lr( e,loss_val)
 
         return [learning_curve_nll_train, learning_curve_nll_test, learning_curve_acc_train,learning_curve_acc_test]
+
+def predict_test_set(test_loader2):
+    results = [[]]
+    for batch_idx, (inputs, targets) in enumerate(test_loader2):
+        if cuda_available:
+            inputs, targets = inputs.cuda(), targets.cuda()
+        inputs= inputs.type(torch.cuda.FloatTensor)
+        outputs = model(inputs)
+        _, predicted = torch.max(outputs.data, 1)
+        results = np.append(results, predicted.cpu().numpy())
+
+    results = np.int8(results)
+
+def generate_submission(results):
+    df = pd.DataFrame({ 'id': range(1, len(results)+1),
+                    'label': results})
+    df['label'].replace([0,1], ['Cat','Dog'], inplace=True)
+    df[df.columns].to_csv('submisstion.csv',index=False)
+    print('Done...')
