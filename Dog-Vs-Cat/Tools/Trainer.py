@@ -17,7 +17,7 @@ from torchsummary import summary
 from torch.autograd import Variable
 from IPython.core.debugger import set_trace
 from PIL import Image
-
+from sklearn.metrics import confusion_matrix
 
 cuda_available = torch.cuda.is_available()
 store_every = 200
@@ -98,6 +98,21 @@ class Trainer():
     #     df['label'].replace([0,1], ['Cat','Dog'], inplace=True)
     #     df[df.columns].to_csv('submisstion.csv',index=False)
     #     print('Done...')
+
+    def confusion_matrix(self):
+        y_pred = [[]]
+        y_true = [[]]
+        for batch_idx, (inputs, targets) in enumerate(self.valid_loader):
+            if cuda_available:
+                inputs, targets = inputs.cuda(), targets.cuda()
+            outputs = self.model(inputs)
+            _, predicted = torch.max(outputs.data, 1)
+            y_pred = np.append(y_pred, predicted.cpu().numpy())
+            y_true = np.append(y_true, targets.cpu().numpy())
+
+        y_pred = np.int8(y_pred)
+        return confusion_matrix(y_true, y_pred)
+        # return [y_pred, y_true]
         
     def train_model(self):
         c = 0
@@ -172,17 +187,18 @@ class Trainer():
 
         return [learning_curve_nll_train, learning_curve_nll_test, learning_curve_acc_train,learning_curve_acc_test]
 
-def predict_test_set(test_loader2):
+def predict_test_set(model, test_loader):
     results = [[]]
-    for batch_idx, (inputs, targets) in enumerate(test_loader2):
+    for batch_idx, (inputs, targets) in enumerate(test_loader):
         if cuda_available:
             inputs, targets = inputs.cuda(), targets.cuda()
+        inputs = inputs.view(-1,3, 64, 64)
         inputs= inputs.type(torch.cuda.FloatTensor)
         outputs = model(inputs)
         _, predicted = torch.max(outputs.data, 1)
         results = np.append(results, predicted.cpu().numpy())
-
     results = np.int8(results)
+    return results
 
 def generate_submission(results):
     df = pd.DataFrame({ 'id': range(1, len(results)+1),
