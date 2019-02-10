@@ -9,14 +9,13 @@ class Test(unittest.TestCase):
 
     def test_validate_gradient(self):
         train_data, _, _ = load_mnist_data()
-        I = range(0, 5)
-        K = [1, 5]
-        N = [k*10**i for i in I for k in K]
+        N = [k*10**i for i in range(0, 5) for k in [1, 5]]
         for n in reversed(N):
             epsilon = 1 / n
             perceptron = NN(epochs=1, hidden_dims=[500, 600], mu=0.1, batch_size=1,
                             weight_init='glorot', validate_gradient=True, epsilon=epsilon)
             perceptron.train(train_data=train_data, nb_classes=10)
+
     def test_mnist(self):
         train_data, validation_data, test_data = load_mnist_data()
 

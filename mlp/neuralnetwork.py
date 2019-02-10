@@ -273,12 +273,14 @@ class NN:
 
                 # Estimate the gradient using (f(x+h) - f(x-h))/2h
                 # calculate the empirical error for x+h
-                parameter[ix] = original_value + self.epsilon
+                x_p_h = original_value + self.epsilon
+                parameter[ix] = x_p_h
                 self.forward(x)
                 grad_plus = self.loss(y)
 
                 # calculate the empirical error for x-h
-                parameter[ix] = original_value - self.epsilon
+                x_m_h = original_value - self.epsilon
+                parameter[ix] = x_m_h
                 self.forward(x)
                 grad_minus = self.loss(y)
 
@@ -289,18 +291,24 @@ class NN:
                 estimated_gradient = (grad_plus - grad_minus) / (2 * self.epsilon)
                 calculated_gradient = backprop_gradient[pidx][ix]
                 diff = np.abs(calculated_gradient - estimated_gradient)
-                print(pname + " gradient diff: ", diff)
-
-                # http://ufldl.stanford.edu/wiki/index.php/Gradient_checking_and_advanced_optimization
-                # https://www.youtube.com/watch?v=P6EtCVrvYPU
-                # https://www.youtube.com/watch?v=pHMzNW8Agq4
-                if not math.isclose(calculated_gradient, estimated_gradient, abs_tol=self.epsilon):
+                # https://www.youtube.com/watch?v=P6EtCVrvYPU -- general
+                # http://ufldl.stanford.edu/wiki/index.php/Gradient_checking_and_advanced_optimization -- general
+                # http://cs231n.github.io/neural-networks-3/#gradcheck -- kinks, comparison with a threshold value
+                # https://stackoverflow.com/a/40626979 -- sign check for ReLUs
+                abs_calculated_grad, abs_estimated_grad = np.abs(calculated_gradient), np.abs(estimated_gradient)
+                max_val = np.max([abs_calculated_grad, abs_estimated_grad])
+                rel_error = diff / max_val if max_val != 0 else 0
+                threshold = 1e-7
+                diff_signs = np.sign(x_p_h) != np.sign(x_m_h)
+                extra = 'different signs: {}'.format(diff_signs) if rel_error > threshold else ''
+                print(pname, " gradient diff: ", diff, '', extra)
+                if rel_error > threshold and not diff_signs:
                     print("------------- error ---------------")
-                    grad_error = np.abs(np.abs(calculated_gradient) - np.abs(estimated_gradient))
-                    print(pname + " gradient error: ", grad_error)
+                    print(pname, ' relative error: ', rel_error)
                     print(pname + " estimated gradient: ", estimated_gradient)
                     print(pname + " calculated gradient: ", calculated_gradient)
-                    raise RuntimeError("gradient error %f is above threshold set to epsilon %s" % (grad_error, self.epsilon))
+                    raise RuntimeError("gradient error {} is above threshold {} (epsilon {})".
+                                       format(rel_error, threshold, self.epsilon))
                 it.iternext()
 
     def save_state(self, params_file):
