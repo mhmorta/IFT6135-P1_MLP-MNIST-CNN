@@ -10,7 +10,6 @@ class Test(unittest.TestCase):
     def test_validate_gradient(self):
         train_data, _, _ = load_mnist_data()
         N = [k*10**i for i in range(0, 5) for k in [1, 5]]
-        #
         perceptron = NN()
         perceptron.load_state(
             'checkpoints/checkpoint_epochs=10,hidden_dims=[500,600],mu=0.01,batch_size=32,weight_init=glorot.pkl')

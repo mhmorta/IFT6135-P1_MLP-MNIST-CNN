@@ -90,12 +90,13 @@ class NN:
         # _hs2: 50000 x 200
         self._ha2 = np.dot(self._hs1, self.w2.transpose()) + self.b2  # second hidden layer activation
         self._hs2 = self.activation(self._ha2)  # second hidden layer output
+
         # 50000 x 10
         oa = np.dot(self._hs2, self.w3.transpose()) + self.b3  # output layer activation
         # 5000 x 10
         self._out = self.softmax(oa)  # network output
         if np.isnan(self._out).any():
-            print('nans, put a debug point here')
+            raise RuntimeError('nans, put a debug point here')
 
     def activation(self, input):
         return relu(input)
@@ -242,6 +243,9 @@ class NN:
                 stats.append('')
         report_file.write(','.join(map(str, stats)) + '\n')
 
+    def _calc_max_winners(self):
+        return [np.equal(self._hs1, self._ha1), np.equal(self._hs2, self._ha2)]
+
     def _validate_gradient(self, x, y, model_parameters, backprop_gradient):
         """
         Validate if the gradient calculated by backpropagation algorithm is similar
@@ -275,15 +279,16 @@ class NN:
 
                 # Estimate the gradient using (f(x+h) - f(x-h))/2h
                 # calculate the empirical error for x+h
-                x_p_h = original_value + self.epsilon
-                parameter[ix] = x_p_h
+                parameter[ix] = original_value + self.epsilon
                 self.forward(x)
+                x_p_h_relu_winners = self._calc_max_winners()
+
                 grad_plus = self.loss(y)
 
                 # calculate the empirical error for x-h
-                x_m_h = original_value - self.epsilon
-                parameter[ix] = x_m_h
+                parameter[ix] = original_value - self.epsilon
                 self.forward(x)
+                x_m_h_relu_winners = self._calc_max_winners()
                 grad_minus = self.loss(y)
 
                 # Reset parameter to original value
@@ -296,15 +301,14 @@ class NN:
                 # https://www.youtube.com/watch?v=P6EtCVrvYPU -- general
                 # http://ufldl.stanford.edu/wiki/index.php/Gradient_checking_and_advanced_optimization -- general
                 # http://cs231n.github.io/neural-networks-3/#gradcheck -- kinks, comparison with a threshold value
-                # https://stackoverflow.com/a/40626979 -- sign check for ReLUs
-                abs_calculated_grad, abs_estimated_grad = np.abs(calculated_gradient), np.abs(estimated_gradient)
-                max_val = np.max([abs_calculated_grad, abs_estimated_grad])
+                max_val = np.max([np.abs(calculated_gradient), np.abs(estimated_gradient)])
                 rel_error = diff / max_val if max_val != 0 else 0
-                threshold = 1e-7
-                diff_signs = np.sign(x_p_h) != np.sign(x_m_h)
-                extra = 'different signs: {}'.format(diff_signs) if rel_error > threshold else ''
-                print(pname, " gradient diff: ", diff, '', extra)
-                if rel_error > threshold and not diff_signs:
+                threshold = 1e-4
+                diff_winners = (np.equal(x_p_h_relu_winners[0], x_m_h_relu_winners[0])).any() \
+                               or (x_p_h_relu_winners[1] != x_m_h_relu_winners[1]).any()
+                kinks_crossed = '(kinks crossed)'.format(diff_winners) if rel_error > threshold else ''
+                print(pname, ' gradient diff: ', diff, '', kinks_crossed)
+                if rel_error > threshold and not diff_winners:
                     print("------------- error ---------------")
                     print(pname, ' relative error: ', rel_error)
                     print(pname + " estimated gradient: ", estimated_gradient)
