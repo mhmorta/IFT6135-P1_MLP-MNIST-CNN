@@ -15,5 +15,7 @@ for report in reports:
         plt.plot(train, label=weight_init)
 plt.xticks(range(len(train)))
 plt.legend()
-plt.title('Average loss')
+plt.title('Average loss (on training data)')
+plt.xlabel('Epoch')
+plt.ylabel('Average loss')
 plt.show()

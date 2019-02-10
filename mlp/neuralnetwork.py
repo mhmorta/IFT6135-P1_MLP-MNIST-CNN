@@ -54,8 +54,8 @@ class NN:
     def initialize_weights(self, i, j):
         """
         Initialize the weight matrix i x j for the layer of n entries
-        :param i: number of rows of the matrix W
-        :param j: number of columns
+        :param i: number of rows of the matrix W (output of the layer)
+        :param j: number of columns (input to the layer)
         :return: two-dimensional numpy array
         """
         if self.weight_init == 'zeros':
