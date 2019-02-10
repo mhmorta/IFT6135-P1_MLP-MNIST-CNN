@@ -132,11 +132,11 @@ class NN:
         # https://youtu.be/1N837i4s1T8
         grad_oa = self._out - onehot_matrix(self.nb_out, y)
 
-        #grad_oa /= self.batch_size
+        grad_oa /= self.batch_size
 
         # loss gradient at parameters: https://youtu.be/p5tL2JqCRDo
-        grad_w3 = np.dot(grad_oa.transpose(), self._hs2) / self.batch_size
-        grad_b3 = np.sum(grad_oa, axis=0) / self.batch_size
+        grad_w3 = np.dot(grad_oa.transpose(), self._hs2)
+        grad_b3 = np.sum(grad_oa, axis=0)
 
         # loss gradient at hidden layers: activation and pre-activation
 
@@ -145,16 +145,16 @@ class NN:
         grad_hs2 = np.dot(grad_oa, self.w3)
         grad_ha2 = np.multiply(grad_hs2, relu_derivative(self._ha2))
 
-        grad_w2 = np.dot(grad_ha2.transpose(), self._hs1) / self.batch_size
-        grad_b2 = np.sum(grad_ha2, axis=0) / self.batch_size
+        grad_w2 = np.dot(grad_ha2.transpose(), self._hs1)
+        grad_b2 = np.sum(grad_ha2, axis=0)
 
         # then pass to the first hidden layer
         # https://youtu.be/xFhM_Kwqw48
         grad_hs1 = np.dot(grad_ha2, self.w2)
         grad_ha1 = np.multiply(grad_hs1, relu_derivative(self._ha1))
 
-        grad_w1 = np.dot(grad_ha1.transpose(), x) / self.batch_size
-        grad_b1 = np.sum(grad_ha1, axis=0) / self.batch_size
+        grad_w1 = np.dot(grad_ha1.transpose(), x)
+        grad_b1 = np.sum(grad_ha1, axis=0)
 
         return grad_w1, grad_b1, grad_w2, grad_b2, grad_w3, grad_b3
 
@@ -196,12 +196,13 @@ class NN:
                 if self.debug:
                     self._evaluate_and_log(epoch, report)
                 # split the data into mini-batches and train the network for the each batch
-                np.random.shuffle(self.train_data)
+                if not self.validate_gradient:
+                    np.random.shuffle(self.train_data)
                 for i in range(0, self.nb_samples, self.batch_size):
                     batch = self.train_data[i:i + self.batch_size]
                     self._train_batch(batch)
                     if self.validate_gradient:
-                        break
+                        return
 
     def test(self, test_data):
         # return the most probable class
@@ -251,6 +252,7 @@ class NN:
         :raises: exception if the calculated algorithm is too different from empirical
         """
         # calculate finite gradient
+        print('\n\n===Validating gradient for epsilon=', self.epsilon, '===')
         for pidx, pname in enumerate(model_parameters):
             # Get the actual parameter value by it's name, e.g. w1, w2 etc
             parameter = self.__getattribute__(pname)
@@ -343,6 +345,6 @@ class NN:
             self.batch_size)
 
     def params_str(self):
-        return "epochs={},hidden_dims={},mu={},batch_size={},weight_init={}".\
-            format(self.epochs,self.hidden_dims,self.mu,self.batch_size,self.weight_init). \
+        return "epochs={},hidden_dims={},mu={},batch_size={},validate_gradient={},weight_init={}".\
+            format(self.epochs, self.hidden_dims, self.mu, self.batch_size, self.validate_gradient, self.weight_init). \
             replace(" ", "")
