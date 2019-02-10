@@ -72,7 +72,7 @@ def datasets_loader():
                         shuffle=True
                         )
 
-    test_data = DriveData("./data/testset/")
+    test_data = DriveData("./data/testset/test")
     test_loader = DataLoader(test_data, batch_size=10, shuffle=False, num_workers=1)
 
     return [train_loader, valid_loader, test_loader]
