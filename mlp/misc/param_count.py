@@ -1,5 +1,5 @@
 def l(input, n_count):
-    ret = input * n_count + n_count
+    ret = (input+1) * n_count
     return ret
 
 

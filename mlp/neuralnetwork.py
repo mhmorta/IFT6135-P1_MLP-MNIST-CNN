@@ -1,7 +1,6 @@
 import numpy as np
-from .utils import safe_softmax_matrix, relu, onehot_matrix, relu_derivative
+from mlp.utils import safe_softmax_matrix, relu, onehot_matrix, relu_derivative
 import pickle
-import math
 
 
 class NN:
