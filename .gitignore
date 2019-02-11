@@ -3,3 +3,5 @@ venv/
 */__pycache__/*
 /MNIST/data
 .ipynb_checkpoints
+mlp/checkpoints/*
+mlp/datasets/mnist.pkl
