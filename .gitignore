@@ -7,3 +7,4 @@ Dog-Vs-Cat/__pycache__
 .csv#
 Dog-Vs-Cat/output
 .vscode/
+.Experiments/*

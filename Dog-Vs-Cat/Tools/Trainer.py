@@ -18,6 +18,7 @@ from torch.autograd import Variable
 from IPython.core.debugger import set_trace
 from PIL import Image
 from sklearn.metrics import confusion_matrix
+import time
 
 cuda_available = torch.cuda.is_available()
 store_every = 200
@@ -115,6 +116,7 @@ class Trainer():
         # return [y_pred, y_true]
         
     def train_model(self):
+        start_time = time.time()
         c = 0
         LOSSES = 0
         lv = 0
