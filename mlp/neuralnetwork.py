@@ -1,6 +1,8 @@
 import numpy as np
 from mlp.utils import safe_softmax_matrix, relu, onehot_matrix, relu_derivative
 import pickle
+import zipfile
+import os
 
 
 class NN:
@@ -297,9 +299,8 @@ class NN:
                 estimated_gradient = (grad_plus - grad_minus) / (2 * self.epsilon)
                 calculated_gradient = backprop_gradient[pidx][ix]
                 diff = np.abs(calculated_gradient - estimated_gradient)
-                # https://www.youtube.com/watch?v=P6EtCVrvYPU -- general
-                # http://ufldl.stanford.edu/wiki/index.php/Gradient_checking_and_advanced_optimization -- general
-                # http://cs231n.github.io/neural-networks-3/#gradcheck -- kinks, comparison with a threshold value
+                # http://ufldl.stanford.edu/wiki/index.php/Gradient_checking_and_advanced_optimization
+                # http://cs231n.github.io/neural-networks-3/#gradcheck -- kinks, relative error
                 max_val = np.max([np.abs(calculated_gradient), np.abs(estimated_gradient)])
                 rel_error = diff / max_val if max_val != 0 else 0
                 threshold = 1e-4
@@ -324,8 +325,13 @@ class NN:
         with open(params_file, 'wb') as f:
             pickle.dump(attributes, f)
 
-    def load_state(self, params_file):
-        with open(params_file, 'rb') as f:
+    def load_state(self, dir_name, params_file, zipped=False):
+        full_f_name = os.path.join(dir_name, params_file)
+        if zipped:
+            archive = zipfile.ZipFile(full_f_name.replace('.pkl', '.zip'), 'r')
+            archive.extractall(dir_name)
+            archive.close()
+        with open(full_f_name, 'rb') as f:
             state = pickle.load(f)
         for attr in state.items():
             self.__setattr__(attr[0], attr[1])
