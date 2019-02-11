@@ -202,9 +202,9 @@ class NN:
                     np.random.shuffle(self.train_data)
                 for i in range(0, self.nb_samples, self.batch_size):
                     batch = self.train_data[i:i + self.batch_size]
-                    self._train_batch(batch)
+                    max_deviation = self._train_batch(batch)
                     if self.validate_gradient:
-                        return
+                        return max_deviation
 
     def test(self, test_data):
         # return the most probable class
@@ -220,9 +220,10 @@ class NN:
         if self.validate_gradient:
             from_idx, to_idx = 2, 4
             model_parameters = ['w1', 'b1', 'w2', 'b2', 'w3', 'b3']
-            self._validate_gradient(x, y, model_parameters[from_idx: to_idx], backprop_gradient[from_idx: to_idx])
+            return self._validate_gradient(x, y, model_parameters[from_idx: to_idx], backprop_gradient[from_idx: to_idx])
         else:
             self.update(*backprop_gradient)
+            return None
 
     def _evaluate_and_log(self, epoch, report_file):
         stats = [epoch]
@@ -258,6 +259,7 @@ class NN:
         """
         # calculate finite gradient
         print('\n\n===Validating gradient for epsilon=', self.epsilon, '===')
+        max_deviation = None
         for pidx, pname in enumerate(model_parameters):
             # Get the actual parameter value by it's name, e.g. w1, w2 etc
             parameter = self.__getattribute__(pname)
@@ -305,9 +307,11 @@ class NN:
                 rel_error = diff / max_val if max_val != 0 else 0
                 threshold = 1e-4
                 diff_winners = (np.equal(x_p_h_relu_winners[0], x_m_h_relu_winners[0])).any() \
-                               or (x_p_h_relu_winners[1] != x_m_h_relu_winners[1]).any()
+                    or (x_p_h_relu_winners[1] != x_m_h_relu_winners[1]).any()
                 kinks_crossed = '(kinks crossed)'.format(diff_winners) if rel_error > threshold else ''
                 print(pname, ' gradient diff: ', diff, '', kinks_crossed)
+                if max_deviation is None or max_deviation < diff:
+                    max_deviation = diff
                 if rel_error > threshold and not diff_winners:
                     print("------------- error ---------------")
                     print(pname, ' relative error: ', rel_error)
@@ -316,6 +320,7 @@ class NN:
                     raise RuntimeError("gradient error {} is above threshold {} (epsilon {})".
                                        format(rel_error, threshold, self.epsilon))
                 it.iternext()
+        return max_deviation
 
     def save_state(self, params_file):
         attributes = {k: v for k, v in self.__dict__.items() if not k.startswith('__')}

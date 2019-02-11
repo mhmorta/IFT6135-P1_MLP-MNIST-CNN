@@ -17,10 +17,13 @@ class Test(unittest.TestCase):
         perceptron.batch_size = 1
         perceptron.validate_gradient = True
         perceptron.debug = False
-        for n in reversed(N):
-            epsilon = 1 / n
-            perceptron.epsilon = epsilon
-            perceptron.train(train_data=train_data, nb_classes=10)
+        with open('reports/gradient_{}.csv'.format(perceptron.params_str()), 'w') as report:
+            report.write("n,epsilon,max_deviation\n")
+            for n in reversed(N):
+                epsilon = 1 / n
+                perceptron.epsilon = epsilon
+                max_deviation = perceptron.train(train_data=train_data, nb_classes=10)
+                report.write("{},{},{}\n".format(n, epsilon, max_deviation))
 
     def test_mnist(self):
         train_data, validation_data, test_data = load_mnist_data()
