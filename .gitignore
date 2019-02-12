@@ -4,6 +4,8 @@ venv/
 Dog-Vs-Cat/__pycache__
 /MNIST/data
 .ipynb_checkpoints
+mlp/checkpoints/*
+mlp/datasets/mnist.pkl
 .csv#
 Dog-Vs-Cat/output
 .vscode/

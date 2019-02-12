@@ -1,108 +1,243 @@
 import numpy as np
-from .utils import random_uniform, safe_softmax_matrix, relu, onehot_matrix, one_hot, safe_softmax, relu_derivative
+from mlp.utils import safe_softmax_matrix, relu, onehot_matrix, relu_derivative
 import pickle
+import zipfile
+import os
 
 
-class MLPerceptron(object):
+class NN:
     """
     Realisation of the 2-layer neural network that uses numpy matrix methods
     """
-
-    def __init__(self, nb_hidden=6, mu=0.01, epochs=100, batch_size=50,
-                 l11=0.005, l12=0.001, l21=0.005, l22=0.001, grad_threshold=0.02, validate_gradient=False, debug=False):
-        self.nb_hidden = nb_hidden
+    def __init__(self, hidden_dims=(500, 500), mu=None, epochs=None, batch_size=32,
+                 validate_gradient=False, debug=False, weight_init='glorot',
+                 epsilon=1e-5):
+        self.hidden_dims = hidden_dims
+        self.nb_hidden1, self.nb_hidden2 = hidden_dims
         self.mu = mu
         self.epochs = epochs
-        self.grad_threshold = grad_threshold
         self.nb_out = 0
         self.nb_samples = 0
-        self.epsilon = 1e-5  # default gradient verification step
+        self.epsilon = epsilon  # default gradient verification step
         self.train_data = None  # features from training data
+        self.weight_init = weight_init
+
+        self.w3 = None
         self.w2 = None
         self.w1 = None
+
         self.b1 = None
         self.b2 = None
-        self._ha = None  # hidden layer activations
-        self._hs = None  # hidden layer outputs
+        self.b3 = None
+
+        self._ha1 = None  # hidden layer 1 activations
+        self._hs1 = None  # hidden layer 1 outputs
+
+        self._ha2 = None  # hidden layer 1 activations
+        self._hs2 = None  # hidden layer 1 outpus
+
         self._out = None  # network output layer outputs
-        self._validate_gradient = validate_gradient
+        self.validate_gradient = validate_gradient
+
         self.batch_size = batch_size
-        self.l11 = l11
-        self.l12 = l12
-        self.l21 = l21
-        self.l22 = l22
-        self.report_file_name = "report.csv"
+
+        self.report_file_name = "report_{}.csv".format(self.params_str())
         self.validation_data = None
         self.test_data = None
         self.debug = debug
+        print('======')
+        print('weight_init:', weight_init)
+        print('mu:', mu)
+        print('hidden_dims:', hidden_dims)
+        print('epochs:', epochs)
+        print('epsilon', epsilon)
+        print('======')
 
-    def description(self):
-        return "{0} : hidden={1}, learn.rate={2}, epochs={3}, batch={4}\n" \
-               r"$\lambda11={5}, \lambda12={6}, \lambda21={7}, \lambda22={8}$".format(
-            self.__class__.__name__,
-            self.nb_hidden,
-            self.mu,
-            self.epochs,
-            self.batch_size,
-            self.l11,
-            self.l12,
-            self.l21,
-            self.l22)
-
-    def init_weights(self, i, j):
+    def initialize_weights(self, i, j):
         """
         Initialize the weight matrix i x j for the layer of n entries
-        :param i: number of rows of the matrix W
-        :param j: number of columns
+        :param i: number of rows of the matrix W (output of the layer)
+        :param j: number of columns (input to the layer)
         :return: two-dimensional numpy array
         """
-        # todo why max to max?
-        max_val = 1 / np.sqrt(j)
-        return np.array([[random_uniform(-max_val, max_val) for _ in range(j)] for _ in range(i)])
+        if self.weight_init == 'zeros':
+            weights = np.zeros((i, j))
+        elif self.weight_init == 'normal':
+            weights = np.array(np.random.normal(0, 1, (i, j)))
+        elif self.weight_init == 'glorot':
+            d = np.sqrt(6 / (i + j))
+            weights = np.random.uniform(-d, d, (i, j))
+        else:
+            raise RuntimeError('Have not found initializing method for ', self.weight_init)
+        return weights
 
     def init_bias(self, i):
         return np.zeros(i)
 
-    def train(self, train_data):
+    def forward(self, x):
+        """
+        walk forward from input layer x to output layer
+        """
+        # x: 50000 x 784
+        # w1: 1000 x 784
+        # b1: 1000
+        # _ha1: 50000 x 1000
+        # _hs1: 50000 x 1000
+        self._ha1 = np.dot(x, self.w1.transpose()) + self.b1  # first hidden layer activation
+        self._hs1 = self.activation(self._ha1)  # first hidden layer output
+        # w2: 200 x 1000
+        # b2: 200
+        # _ha2: 50000 x 200
+        # _hs2: 50000 x 200
+        self._ha2 = np.dot(self._hs1, self.w2.transpose()) + self.b2  # second hidden layer activation
+        self._hs2 = self.activation(self._ha2)  # second hidden layer output
+
+        # 50000 x 10
+        oa = np.dot(self._hs2, self.w3.transpose()) + self.b3  # output layer activation
+        # 5000 x 10
+        self._out = self.softmax(oa)  # network output
+        if np.isnan(self._out).any():
+            raise RuntimeError('nans, put a debug point here')
+
+    def activation(self, input):
+        return relu(input)
+
+    def loss(self, y):
+        """
+        Compute cross-entropy (log-loss) loss function
+        :param y: numpy array of the expected classes
+        :return:
+        """
+        prediction = np.multiply(self._out, onehot_matrix(self.nb_out, y))
+        precision = np.max(prediction, axis=1)
+        # cross-entropy log, will return 0 for log(0)
+        log_precision = np.log(precision, out=np.zeros_like(precision), where=(precision != 0))
+        log_err = np.multiply(log_precision, -1)
+        err = np.mean(log_err)
+        return err
+
+    def softmax(self, input):
+        return safe_softmax_matrix(input)
+
+    def backward(self, x, y):
+        """
+        Backpropagation algorithm realisation for a 3-layer network
+        :param x: numpy array of the features
+        :param y: numpy array of the expected classes
+        :return:
+        """
+        # Nice summary of the involved equations:
+        # https://youtu.be/_KoWTD8T45Q?list=PL6Xpj9I5qXYEcOhn7TqghAJ6NAPrNmUBH&t=91
+
+        # calculate gradients
+        # start from the output layer
+        # https://youtu.be/1N837i4s1T8
+        grad_oa = self._out - onehot_matrix(self.nb_out, y)
+
+        grad_oa /= self.batch_size
+
+        # loss gradient at parameters: https://youtu.be/p5tL2JqCRDo
+        grad_w3 = np.dot(grad_oa.transpose(), self._hs2)
+        grad_b3 = np.sum(grad_oa, axis=0)
+
+        # loss gradient at hidden layers: activation and pre-activation
+
+        # then pass to the second hidden layer
+        # https://youtu.be/xFhM_Kwqw48
+        grad_hs2 = np.dot(grad_oa, self.w3)
+        grad_ha2 = np.multiply(grad_hs2, relu_derivative(self._ha2))
+
+        grad_w2 = np.dot(grad_ha2.transpose(), self._hs1)
+        grad_b2 = np.sum(grad_ha2, axis=0)
+
+        # then pass to the first hidden layer
+        # https://youtu.be/xFhM_Kwqw48
+        grad_hs1 = np.dot(grad_ha2, self.w2)
+        grad_ha1 = np.multiply(grad_hs1, relu_derivative(self._ha1))
+
+        grad_w1 = np.dot(grad_ha1.transpose(), x)
+        grad_b1 = np.sum(grad_ha1, axis=0)
+
+        return grad_w1, grad_b1, grad_w2, grad_b2, grad_w3, grad_b3
+
+    def update(self, grad_w1, grad_b1, grad_w2, grad_b2, grad_w3, grad_b3):
+        # update network parameters
+        self.w3 -= self.mu * grad_w3
+        self.b3 -= self.mu * grad_b3
+        self.w2 -= self.mu * grad_w2
+        self.b2 -= self.mu * grad_b2
+        self.w1 -= self.mu * grad_w1
+        self.b1 -= self.mu * grad_b1
+
+    def train(self, train_data, nb_classes):
         # initialize the weight matrices and bias arrays
         self.train_data = train_data
+        #50 000
         self.nb_samples = np.shape(self.train_data)[0]
-        classes = train_data[:, -1].astype(int)  # convert labels to integers
+        # 784
         nb_features = np.shape(train_data)[1] - 1  # exclude the last column which contains the labels
-        self.nb_out = np.unique(classes).size  # number neurons in the output layer == number of the classes
-        self.w2 = self.init_weights(self.nb_out, self.nb_hidden)  # dimension m X dh
-        self.w1 = self.init_weights(self.nb_hidden, nb_features)  # dimensions dh x X
-        self.b2 = self.init_bias(self.nb_out)  # dimensions m
-        self.b1 = self.init_bias(self.nb_hidden)  # dimension dh
+        # 10
+        self.nb_out = nb_classes  # number neurons in the output layer == number of the classes
+        # 10x200
+        self.w3 = self.initialize_weights(self.nb_out, self.nb_hidden2)
+        # 200x1000
+        self.w2 = self.initialize_weights(self.nb_hidden2, self.nb_hidden1)
+        # 1000x784
+        self.w1 = self.initialize_weights(self.nb_hidden1, nb_features)
+        # 10
+        self.b3 = self.init_bias(self.nb_out)
+        # 200
+        self.b2 = self.init_bias(self.nb_hidden2)
+        # 1000
+        self.b1 = self.init_bias(self.nb_hidden1)
         # train
-        report = None
-        if self.debug:
-            report = open(self.report_file_name, 'w')
-            report.write("epoch,train_error,train_avg_loss,valid_error,valid_avg_loss,test_error,test_avg_loss\n")
-        for epoch in range(self.epochs):
-            #
+        with open('reports/{}'.format(self.report_file_name), 'w') as report:
             if self.debug:
-                self.evaluate_and_log(epoch, report)
-            # split the data into mini-batches and train the network for the each batch
-            np.random.shuffle(self.train_data)
-            for i in range(0, self.nb_samples, self.batch_size):
-                batch = self.train_data[i:i + self.batch_size]
-                self.train_batch(batch)
+                report.write("epoch,train_error,train_avg_loss,valid_error,valid_avg_loss,test_error,test_avg_loss\n")
+            for epoch in range(self.epochs):
+                if self.debug:
+                    self._evaluate_and_log(epoch, report)
+                # split the data into mini-batches and train the network for the each batch
+                if not self.validate_gradient:
+                    np.random.shuffle(self.train_data)
+                for i in range(0, self.nb_samples, self.batch_size):
+                    batch = self.train_data[i:i + self.batch_size]
+                    max_deviation = self._train_batch(batch)
+                    if self.validate_gradient:
+                        return max_deviation
 
-        if report is not None:
-            report.close()
+    def test(self, test_data):
+        # return the most probable class
+        self.forward(test_data)
+        return np.argmax(self._out, axis=1)  # we assume that the index == class
 
-    def evaluate_and_log(self, epoch, report_file):
+    def _train_batch(self, batch):
+        x = batch[:, :-1]
+        y = batch[:, -1].astype(int)  # convert labels to integers
+        self.forward(x)
+        # Gradient check for each parameter
+        backprop_gradient = self.backward(x, y)
+        if self.validate_gradient:
+            from_idx, to_idx = 2, 4
+            model_parameters = ['w1', 'b1', 'w2', 'b2', 'w3', 'b3']
+            return self._validate_gradient(x, y, model_parameters[from_idx: to_idx], backprop_gradient[from_idx: to_idx])
+        else:
+            self.update(*backprop_gradient)
+            return None
+
+    def _evaluate_and_log(self, epoch, report_file):
         stats = [epoch]
         print("\nEpoch: ", epoch)
-        for name, data in [('train', self.train_data), ('validation', self.validation_data), ('test', self.test_data)]:
+        for name, data in [('train', self.train_data), ('validation', self.validation_data)]:
+            # data: 50000 X 784 + 1
             if data is not None:
-                prediction = self.compute_predictions(data[:, :-1])  # pass only the features without labels
+                prediction = self.test(data[:, :-1])  # pass only the features without labels
                 expected = data[:, -1].astype(int)  # labels
                 error = 1 - np.mean(prediction == expected)
-                avg_loss = self.average_loss(expected)
+                avg_loss = self.loss(expected)
                 print("%s error rate: " % name, error)
                 print("%s average loss: " % name, avg_loss)
+                print("%s accuracy: " % name, (1 - error) * 100)
                 stats.append(error)
                 stats.append(avg_loss)
             else:
@@ -110,37 +245,10 @@ class MLPerceptron(object):
                 stats.append('')
         report_file.write(','.join(map(str, stats)) + '\n')
 
-    def load_state(self, params_file):
-        f = open(params_file, 'rb')
-        state = pickle.load(f)
-        for attr in state.items():
-            self.__setattr__(attr[0], attr[1])
+    def _calc_max_winners(self):
+        return [np.equal(self._hs1, self._ha1), np.equal(self._hs2, self._ha2)]
 
-        print("\nLoaded classifier configuration ----------------------------")
-        print("W1: ", self.w1)
-        print("b1: ", self.b1)
-        print("W2: ", self.w2)
-        print("b2: ", self.b2)
-
-    def save_state(self, params_file):
-        attributes = {k: v for k, v in self.__dict__.items() if not k.startswith('__')}
-        print("\nSaving classifier configuration ----------------------------")
-        for param in attributes.items():
-            print(param)
-        f = open(params_file, 'wb')
-        pickle.dump(attributes, f)
-
-    def train_batch(self, batch):
-        x = batch[:, :-1]
-        y = batch[:, -1].astype(int)  # convert labels to integers
-        self.fprop(x)
-        # Gradient check for each parameter
-        backprop_gradient = self.bprop(x, y)
-        if self._validate_gradient:
-            self.validate_gradient(x, y, backprop_gradient)
-        self.update_parameters(*backprop_gradient)
-
-    def validate_gradient(self, x, y, backprop_gradient):
+    def _validate_gradient(self, x, y, model_parameters, backprop_gradient):
         """
         Validate if the gradient calculated by backpropagation algorithm is similar
         to the empirical gradient calculated with finite step epsilon
@@ -150,26 +258,42 @@ class MLPerceptron(object):
         :raises: exception if the calculated algorithm is too different from empirical
         """
         # calculate finite gradient
-        model_parameters = ['w1', 'b1', 'w2', 'b2']
+        print('\n\n===Validating gradient for epsilon=', self.epsilon, '===')
+        max_deviation = None
         for pidx, pname in enumerate(model_parameters):
             # Get the actual parameter value by it's name, e.g. w1, w2 etc
             parameter = self.__getattribute__(pname)
-            # Iterate over each element of the parameter matrix, e.g. (0,0), (0,1), ...
-            #TODO ask?
+
+            # Iterate over each element of the parameter matrix,
+            # method returns indexes (i, j) of each element e.g. (0,0), (0,1), ...
             it = np.nditer(parameter, flags=['multi_index'], op_flags=['readwrite'])
-            while not it.finished:
+
+            # verify only 10 parameters
+            verified = 0
+            while not it.finished and verified < 10:
+
+                verified += 1
+
+                # ix = (i, j)
                 ix = it.multi_index
+
                 # Save the original value so we can reset it later
                 original_value = parameter[ix]
+
                 # Estimate the gradient using (f(x+h) - f(x-h))/2h
                 # calculate the empirical error for x+h
                 parameter[ix] = original_value + self.epsilon
-                self.fprop(x)
-                grad_plus = self.empirical_error(y)
+                self.forward(x)
+                x_p_h_relu_winners = self._calc_max_winners()
+
+                grad_plus = self.loss(y)
+
                 # calculate the empirical error for x-h
                 parameter[ix] = original_value - self.epsilon
-                self.fprop(x)
-                grad_minus = self.empirical_error(y)
+                self.forward(x)
+                x_m_h_relu_winners = self._calc_max_winners()
+                grad_minus = self.loss(y)
+
                 # Reset parameter to original value
                 parameter[ix] = original_value
 
@@ -177,339 +301,64 @@ class MLPerceptron(object):
                 estimated_gradient = (grad_plus - grad_minus) / (2 * self.epsilon)
                 calculated_gradient = backprop_gradient[pidx][ix]
                 diff = np.abs(calculated_gradient - estimated_gradient)
-                summ = np.abs(calculated_gradient) + np.abs(estimated_gradient)
-                if summ != 0:
-                    grad_error = diff / summ
-                    print("\nGradient error: ", grad_error)
-                    if grad_error > self.grad_threshold:
-                        print("\nEstimated gradient: ", estimated_gradient)
-                        print("\nCalculated gradient: ", calculated_gradient)
-                        raise Exception("\nGradient diff is too big: ", grad_error)
+                # http://ufldl.stanford.edu/wiki/index.php/Gradient_checking_and_advanced_optimization
+                # http://cs231n.github.io/neural-networks-3/#gradcheck -- kinks, relative error
+                max_val = np.max([np.abs(calculated_gradient), np.abs(estimated_gradient)])
+                rel_error = diff / max_val if max_val != 0 else 0
+                threshold = 1e-4
+                diff_winners = (np.equal(x_p_h_relu_winners[0], x_m_h_relu_winners[0])).any() \
+                    or (x_p_h_relu_winners[1] != x_m_h_relu_winners[1]).any()
+                kinks_crossed = '(kinks crossed)'.format(diff_winners) if rel_error > threshold else ''
+                print(pname, ' gradient diff: ', diff, '', kinks_crossed)
+                if max_deviation is None or max_deviation < diff:
+                    max_deviation = diff
+                if rel_error > threshold and not diff_winners:
+                    print("------------- error ---------------")
+                    print(pname, ' relative error: ', rel_error)
+                    print(pname + " estimated gradient: ", estimated_gradient)
+                    print(pname + " calculated gradient: ", calculated_gradient)
+                    raise RuntimeError("gradient error {} is above threshold {} (epsilon {})".
+                                       format(rel_error, threshold, self.epsilon))
                 it.iternext()
+        return max_deviation
 
-    def empirical_error(self, y):
-        """
-        Compute regularized empirical error
-        :param y: numpy array of the expected classes
-        :return:
-        """
-        prediction = np.multiply(self._out, onehot_matrix(self.nb_out, y))
-        precision = np.max(prediction, axis=1)
-        log_err = np.multiply(np.log(precision), -1)
-        err = np.mean(log_err)
-        regularized_err = err + \
-                          self.l11 * abs(self.w1).sum() + \
-                          self.l21 * abs(self.w2).sum() + \
-                          self.l12 * (self.w1 ** 2).sum() + \
-                          self.l22 * (self.w2 ** 2).sum()
-        return regularized_err
+    def save_state(self, params_file):
+        attributes = {k: v for k, v in self.__dict__.items() if not k.startswith('__')}
+        print("\nSaving classifier configuration ----------------------------")
+        for param in attributes.items():
+            print(param)
+        with open(params_file, 'wb') as f:
+            pickle.dump(attributes, f)
 
-    def average_loss(self, y):
-        """
-        Compute the average loss function
-        :param y: numpy array of the expected classes
-        :return:
-        """
-        prediction = np.multiply(self._out, onehot_matrix(self.nb_out, y))
-        precision = np.max(prediction, axis=1)
-        log_err = np.multiply(np.log(precision), -1)
-        return np.mean(log_err)
+    def load_state(self, dir_name, params_file, zipped=False):
+        full_f_name = os.path.join(dir_name, params_file)
+        if zipped:
+            archive = zipfile.ZipFile(full_f_name.replace('.pkl', '.zip'), 'r')
+            archive.extractall(dir_name)
+            archive.close()
+        with open(full_f_name, 'rb') as f:
+            state = pickle.load(f)
+        for attr in state.items():
+            self.__setattr__(attr[0], attr[1])
 
-    def fprop(self, x):
-        """
-        walk forward from input layer x to output layer
-        """
-        self._ha = np.dot(x, self.w1.transpose()) + self.b1
-        self._hs = relu(self._ha)  # hidden layer output
-        oa = np.dot(self._hs, self.w2.transpose()) + self.b2
-        self._out = safe_softmax_matrix(oa)  # network output
-
-    def bprop(self, x, y):
-        """
-        Backpropagation algorithm realisation for 2-layer network
-        :param x: numpy array of the features
-        :param y: numpy array of the expected classes
-        :return:
-        """
-        # calculate gradients
-        # start from the output layer
-        grad_oa = self._out - onehot_matrix(self.nb_out, y)
-        # apply regularisation (weight decay)
-        grad_w2 = np.dot(grad_oa.transpose(), self._hs) / self.batch_size + \
-                  np.multiply(np.sign(self.w2), self.l21) + \
-                  np.multiply(self.w2, (self.l22 * 2))
-        grad_b2 = np.sum(grad_oa, axis=0) / self.batch_size
-        # then pass to the hidden layer
-        grad_hs = np.dot(grad_oa, self.w2)
-        grad_ha = np.multiply(grad_hs, relu_derivative(self._ha))
-        # apply regularisation (weight decay)
-        grad_w1 = np.dot(grad_ha.transpose(), x) / self.batch_size + \
-                  np.multiply(np.sign(self.w1), self.l11) + \
-                  np.multiply(self.w1, (self.l12 * 2))
-        grad_b1 = np.sum(grad_ha, axis=0) / self.batch_size
-        return grad_w1, grad_b1, grad_w2, grad_b2
-
-    def update_parameters(self, grad_w1, grad_b1, grad_w2, grad_b2):
-        # update network parameters W1, W2, b1 and b2
-        self.w2 -= self.mu * grad_w2
-        self.b2 -= self.mu * grad_b2
-        self.w1 -= self.mu * grad_w1
-        self.b1 -= self.mu * grad_b1
-
-    def compute_predictions(self, test_data):
-        # return the most probable class
-        self.fprop(test_data)
-        #todo give out only one element
-        return np.argmax(self._out, axis=1)  # we assume that the index == class
-
-
-class MLPerceptronIterative(object):
-    """
-    Realisation of the 2-layer neural network that uses iterative calculation of mini-batch
-    """
-
-    def __init__(self, nb_hidden=6, mu=0.01, epochs=100, batch_size=50,
-                 l11=0.005, l12=0.001, l21=0.005, l22=0.001, grad_threshold=0.5, validate_gradient=False):
-        self.nb_hidden = nb_hidden
-        self.mu = mu
-        self.epochs = epochs
-        self.grad_threshold = grad_threshold
-        self.nb_out = 0
-        self.nb_features = 0
-        self.nb_samples = 0
-        self.epsilon = 1e-5  # default gradient verification step
-        self.train_data = None  # features from training data
-        self.w2 = None
-        self.w1 = None
-        self.b1 = None
-        self.b2 = None
-        self._ha = None  # hidden layer activations
-        self._hs = None  # hidden layer outputs
-        self._out = None  # network output layer outputs
-        self._validate_gradient = validate_gradient
-        self.batch_size = batch_size
-        self.l11 = l11
-        self.l12 = l12
-        self.l21 = l21
-        self.l22 = l22
+        print("\nLoaded classifier configuration ----------------------------")
+        print("W1: ", self.w1)
+        print("b1: ", self.b1)
+        print("W2: ", self.w2)
+        print("b2: ", self.b2)
+        print("W3: ", self.w3)
+        print("b3: ", self.b3)
 
     def description(self):
-        return "{0} : hidden={1}, learn.rate={2}, epochs={3}, batch={4}\n" \
-               r"$\lambda11={5}, \lambda12={6}, \lambda21={7}, \lambda22={8}$".format(
+        return "{0} : nb_hidden1={1}, nb_hidden2={2}, learn.rate={3}, epochs={4}, batch={5}\n".format(
             self.__class__.__name__,
-            self.nb_hidden,
+            self.nb_hidden1,
+            self.nb_hidden2,
             self.mu,
             self.epochs,
-            self.batch_size,
-            self.l11,
-            self.l12,
-            self.l21,
-            self.l22)
+            self.batch_size)
 
-    def init_weights(self, i, j):
-        """
-        Initialize the weight matrix i x j for the layer of n entries
-        :param i: number of rows of the matrix W
-        :param j: number of columns
-        :return: two-dimensional numpy array
-        """
-        max_val = 1 / np.sqrt(j)
-        return np.matrix([[random_uniform(-max_val, max_val) for _ in range(j)] for _ in range(i)])
-
-    @staticmethod
-    def init_bias(i):
-        return np.zeros(i)
-
-    def train(self, train_data):
-        # initialize the weight matrices and bias arrays
-        self.train_data = train_data
-        self.nb_samples = np.shape(self.train_data)[0]
-        classes = train_data[:, -1].astype(int)  # convert labels to integers
-        self.nb_features = np.shape(train_data)[1] - 1  # exclude the last column which contains the labels
-        self.nb_out = np.max(classes) + 1  # number neurons in the output layer == number of the classes
-        self.w2 = self.init_weights(self.nb_out, self.nb_hidden)  # dimension m X dh
-        self.w1 = self.init_weights(self.nb_hidden, self.nb_features)  # dimensions dh x X
-        self.b2 = self.init_bias(self.nb_out)  # dimensions m
-        self.b1 = self.init_bias(self.nb_hidden)  # dimension dh
-        # train
-        for epoch in range(self.epochs):
-            # split the data into mini-batches and train the network for the each batch
-            np.random.shuffle(self.train_data)
-            for i in range(0, self.nb_samples, self.batch_size):
-                batch = self.train_data[i:i + self.batch_size]
-                self.train_batch(batch)
-        print("\nCalculated coefficients:")
-        print("\nW1: %s" % self.w1)
-        print("\nb1: %s" % self.b1)
-        print("\nW2: %s" % self.w2)
-        print("\nb2: %s" % self.b2)
-
-    def train_batch(self, batch):
-        batch_size = len(batch)
-        batch_gradient_w1 = np.zeros((self.nb_hidden, self.nb_features))
-        batch_gradient_w2 = np.zeros((self.nb_out, self.nb_hidden))
-        batch_gradient_b1 = np.zeros((1, self.nb_hidden))
-        batch_gradient_b2 = np.zeros((1, self.nb_out))
-        for example in batch:
-            x = example[:-1]  # array, dim = d, # of features, or input neurones
-            y = int(example[-1])  # scalar
-            self.fprop(x)
-            # Gradient check for each parameter
-            grad_w1, grad_b1, grad_w2, grad_b2 = self.bprop(x, y)
-
-            # accumulate gradients
-            batch_gradient_w1 += grad_w1
-            batch_gradient_b1 += grad_b1
-            batch_gradient_w2 += grad_w2
-            batch_gradient_b2 += grad_b2
-
-        grad_w1 = (batch_gradient_w1 +
-                   np.multiply(np.sign(self.w1), self.l11) +
-                   np.multiply(self.w1, (self.l12 * 2))) / batch_size
-
-        # grad_w1 = batch_gradient_w1 / batch_size
-
-        grad_b1 = batch_gradient_b1 / batch_size
-
-        grad_w2 = (batch_gradient_w2 +
-                   np.multiply(np.sign(self.w2), self.l21) +
-                   np.multiply(self.w2, (self.l22 * 2))) / batch_size
-
-        # grad_w2 = batch_gradient_w2 / batch_size
-
-        grad_b2 = batch_gradient_b2 / batch_size
-
-        batch_x = batch[:, :-1]
-        batch_y = batch[:, -1].astype(int)
-
-        if self._validate_gradient:
-            self.validate_gradient(batch_x, batch_y, grad_w1, grad_b1, grad_w2, grad_b2)
-
-        self.update_parameters(grad_w1, grad_b1, grad_w2, grad_b2)
-
-    def validate_gradient(self, x, y, grad_w1, grad_b1, grad_w2, grad_b2):
-        """
-        Validate if the gradient calculated by backpropagation algorithm is similar
-        to the empirical gradient calculated with finite step epsilon
-        :param x: array of features, dim = K x d
-        :param y: array of labels, dim = K
-        :raises: exception if the calculated algorithm is too different from empirical
-        """
-        # calculate finite gradient
-        model_parameters = ['w1', 'b1', 'w2', 'b2']
-        backprop_gradient = [grad_w1, grad_b1, grad_w2, grad_b2]
-        for pidx, pname in enumerate(model_parameters):
-            # Get the actual parameter value by it's name, e.g. w1, w2 etc
-            parameter = self.__getattribute__(pname)
-            # Iterate over each element of the parameter matrix, e.g. (0,0), (0,1), ...
-            it = np.nditer(parameter, flags=['multi_index'], op_flags=['readwrite'])
-            while not it.finished:
-                ix = it.multi_index
-                # Save the original value so we can reset it later
-                original_value = parameter[ix]
-                # Estimate the gradient using (f(x+h) - f(x-h))/2h
-                # calculate the empirical error for x+h
-                parameter[ix] = original_value + self.epsilon
-                self.fprop(x)
-                grad_plus = self.empirical_error(y)
-                # calculate the empirical error for x-h
-                parameter[ix] = original_value - self.epsilon
-                self.fprop(x)
-                grad_minus = self.empirical_error(y)
-                # Reset parameter to original value
-                parameter[ix] = original_value
-
-                # verify gradient
-                estimated_gradient = (grad_plus - grad_minus) / (2 * self.epsilon)
-                calculated_gradient = backprop_gradient[pidx][ix]
-                diff = np.abs(calculated_gradient - estimated_gradient)
-                summ = np.abs(calculated_gradient) + np.abs(estimated_gradient)
-                grad_error = 0
-                if summ != 0:
-                    grad_error = diff / summ
-                print("\ngradient %s%s: estimated: %s, calculated: %s, diff: %s" % (
-                    pname, ix, estimated_gradient, calculated_gradient, grad_error))
-                if grad_error > self.grad_threshold:
-                    raise Exception("\nGradient diff is too big: ", grad_error)
-                it.iternext()
-
-    def empirical_error(self, y):
-        """
-        Compute regularized empirical error
-        :param y: numpy array of the expected classes
-        :return:
-        """
-        prediction = np.multiply(self._out, onehot_matrix(self.nb_out, y))
-        precision = np.max(prediction, axis=1)
-        log_err = np.multiply(np.log(precision), -1)
-        err = np.mean(log_err)
-        regularized_err = err + \
-                          self.l11 * abs(self.w1).sum() + \
-                          self.l21 * abs(self.w2).sum() + \
-                          self.l12 * np.power(self.w1, 2).sum() + \
-                          self.l22 * np.power(self.w2, 2).sum()
-        return regularized_err
-
-    def fprop(self, x):
-        """
-        walk forward from input layer x to output layer
-        """
-        # apply W1 weights + B1 bias
-        # vector ha: dim = dh
-        self._ha = np.dot(x, self.w1.transpose()) + self.b1
-
-        # apply non-linear activation function RELU
-        # vector hs: dim = dh
-        self._hs = relu(self._ha)
-
-        # apply W2 weights + B2 bias
-        # vector oa: dim = m
-        oa = np.dot(self._hs, self.w2.transpose()) + self.b2
-
-        # apply softmax function
-        # out dimension: m (# number of output neurones)
-        self._out = safe_softmax(oa)
-
-    def bprop(self, x, y):
-        """
-        Calculate gradients using backpropagation algorithm
-        :param x: numpy array of the features, dim = d
-        :param y: expected class (scalar)
-        :return:
-        """
-        # calculate gradients
-        # start from the output layer
-        # vector grad_oa: dim = m (# of out neurons)
-        grad_oa = self._out - one_hot(self.nb_out, y)
-
-        # gradient for W2
-        # vector hs : out of the hidden layer, dim = dh
-        # matrix grad_w2 : dim = dh x m
-        grad_w2 = np.dot(grad_oa.transpose(), self._hs)
-
-        # gradient for B2
-        # vector grad_b2 : dim = m
-        grad_b2 = grad_oa
-
-        # gradient for W1
-        # vector grad_hs : dim = dh
-        grad_hs = np.dot(grad_oa, self.w2)
-        # vector grad_ha : dim = dh
-        grad_ha = np.multiply(grad_hs, relu_derivative(self._ha))
-        # matrix grad_w1 : dim = dh x d
-        grad_w1 = np.dot(grad_ha.transpose(), np.array([x]))
-        # vector grad_b1: dim = dh (# of hidden neurons)
-        grad_b1 = grad_ha
-        return grad_w1, grad_b1, grad_w2, grad_b2
-
-    def update_parameters(self, grad_w1, grad_b1, grad_w2, grad_b2):
-        # update network parameters W1, W2, b1 and b2
-        self.w1 -= self.mu * grad_w1
-        self.b1 -= self.mu * grad_b1
-        self.w2 -= self.mu * grad_w2
-        self.b2 -= self.mu * grad_b2
-
-    def compute_predictions(self, test_data):
-        # return the most probable class
-        self.fprop(test_data)
-        return np.argmax(self._out, axis=1)  # we assume that the index == class
+    def params_str(self):
+        return "epochs={},hidden_dims={},mu={},batch_size={},validate_gradient={},weight_init={}".\
+            format(self.epochs, self.hidden_dims, self.mu, self.batch_size, self.validate_gradient, self.weight_init). \
+            replace(" ", "")
