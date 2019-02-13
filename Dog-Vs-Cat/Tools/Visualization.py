@@ -5,11 +5,16 @@ import itertools
 
 def plots(nll_train, nll_valid, acc_train, acc_valid ):
     plt.figure(1)
-    plt.plot(range(len(nll_train)), nll_train, label="Loss train" )
-    plt.plot(range(len(nll_valid)), nll_valid,   label="Loss validation" )
+    plt.plot(range(len(nll_train)), nll_train, label="Train Loss")
+    plt.plot(range(len(nll_valid)), nll_valid, label="Validation Loss")
+    plt.xlabel("epochs")
+    plt.ylabel("loss")
+    plt.legend()
     plt.figure(2)
-    plt.plot(range(len(acc_train)), acc_train, label="Accuracy train" )
-    plt.plot(range(len(acc_valid)), acc_valid,   label="Accuracy validation" )
+    plt.plot(range(len(acc_train)), acc_train, label="Train Accuracy" )
+    plt.plot(range(len(acc_valid)), acc_valid, label="Validation Accuracy" )
+    plt.xlabel("epochs")
+    plt.ylabel("accuracy")
     plt.legend()
     plt.show()
 

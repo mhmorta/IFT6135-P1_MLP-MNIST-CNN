@@ -9,4 +9,6 @@ mlp/datasets/mnist.pkl
 .csv#
 Dog-Vs-Cat/output
 .vscode/
-.Experiments/*
+./Experiments/*
+*/development/*
+

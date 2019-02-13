@@ -11,7 +11,7 @@ class VGG16(nn.Module):
             # Layaer 1
             nn.Conv2d(in_channels=3, out_channels=64,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
-            dropout(0.25, 64,'gaussian'),
+            # dropout(0.25, 64,'gaussian'),
 
             nn.Conv2d(in_channels=64, out_channels=64,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
@@ -59,7 +59,7 @@ class VGG16(nn.Module):
             nn.Conv2d(in_channels=512, out_channels=512,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(2,2), stride=2),  
-            dropout(0.5, 512,'gaussian'),
+            # dropout(0.5, 512,'gaussian'),
         )
         
         self.classifier = nn.Sequential(
@@ -67,7 +67,7 @@ class VGG16(nn.Module):
             nn.Linear(4096, 4096),
             nn.Linear(4096, 2),
         )
-        self.init_weights()
+        # self.init_weights()
         
     def forward(self, x):
         x = self.conv(x)

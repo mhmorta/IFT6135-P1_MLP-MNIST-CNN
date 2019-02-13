@@ -24,6 +24,7 @@ cuda_available = torch.cuda.is_available()
 store_every = 200
 start_epoch = 0
 best_acc = torch.FloatTensor([0])
+step = 10
 
 
 class Trainer():
@@ -36,16 +37,18 @@ class Trainer():
         self.valid_loader = valid_loader
         self.test_loader = test_loader
         self.hyperparameters = hyperparameters
+        self.lr= hyperparameters['lr0']
         self.test_prediction = []
+        self.log = {}
     # Keep only a single checkpoint, the best over test accuracy.
-    def save_checkpoint(self, state, is_best, filename='./output/checkpoint.pth.tar'):
-        """Save checkpoint if a new best is achieved"""
-        if is_best:
-            print ("=> Saving a new best")
-            torch.save(state, filename)  # save checkpoint
+    def save_checkpoint(self, state, best, file_path="./output/checkpoint.pth.tar"):
+        if best:
+            print('new checkpoint is saved!')
+            torch.save(state, file_path)
         else:
-            print ("=> Validation Accuracy did not improve")
-        
+            print ('no improvement!')
+
+          
     def evaluate(self, dataset_loader, criterion):
         LOSSES = 0
         COUNTER = 0
@@ -74,12 +77,11 @@ class Trainer():
 #         for param_group in optimizer.param_groups:
 #             param_group['lr'] = lr
 
-    def adjust_lr(self, epoch, loss):
-        mean_loss = np.mean(loss[epoch-2:-1])
-        if np.float(loss[epoch]) < np.float(mean_loss):
-            lr = self.hyperparameters["lr0"] * (0.5 ** (epoch+1 / float(self.hyperparameters['num_epochs'])))
+    def adjust_learning_rate(self, epoch):
+        if (epoch+1) % step == 0:
+            self.lr *= self.hyperparameters['gamma']
             for param_group in self.optimizer.param_groups:
-                param_group['lr'] = lr
+                param_group['lr'] = self.lr
     
     # def predict_test_set(self):
     #     results = [[]]
@@ -117,11 +119,9 @@ class Trainer():
         
     def train_model(self):
         start_time = time.time()
+        best_acc = torch.FloatTensor([0])
         c = 0
         LOSSES = 0
-        lv = 0
-        av = 0
-        loss_val = []
         COUNTER = 0
         ITERATIONS = 0
         learning_curve_nll_train = list()
@@ -129,6 +129,7 @@ class Trainer():
         learning_curve_acc_train = list()
         learning_curve_acc_test = list()
         for e in range(self.hyperparameters['num_epochs']):    
+
             print("------ Epoch #", e+1, "------")
             for batch in self.train_loader:
                 self.optimizer.zero_grad()
@@ -168,12 +169,11 @@ class Trainer():
                         train_loss, valid_loss))
                     print(" [ACC] TRAIN {:.4f} / VALID {:.4f}".format(
                         train_acc, valid_acc))
-                    lv = valid_loss
-                    av = valid_acc
                     
-                    acc = torch.FloatTensor([av])
-                    is_best = bool(acc.numpy() > best_acc.numpy())
+                    acc = torch.FloatTensor([valid_acc])
+                    is_best = (acc.numpy() > best_acc.numpy())
                     best_accuracy = torch.FloatTensor(max(acc.numpy(), best_acc.numpy()))
+
                     # Save checkpoint if is a new best
                     if(self.hyperparameters['save_checkpoint']):
                         self.save_checkpoint({
@@ -181,12 +181,13 @@ class Trainer():
                             'state_dict': self.model.state_dict(),
                             'best_accuracy': best_accuracy
                         }, is_best)  
-                   
-            loss_val.append(lv)
-            c += 1    
-            if (c%10 == 0):
-                self.adjust_lr( e,loss_val)
-
+            if(self.hyperparameters['adjust_lr']):
+                self.adjust_learning_rate(e)
+        self.log = {'learning_curve_nll_train': learning_curve_nll_train,
+                    'learning_curve_nll_test': learning_curve_nll_test,
+                    'learning_curve_acc_train': learning_curve_acc_train,
+                    'learning_curve_acc_test': learning_curve_acc_test
+                    }
         return [learning_curve_nll_train, learning_curve_nll_test, learning_curve_acc_train,learning_curve_acc_test]
 
 def predict_test_set(model, test_loader):
@@ -199,6 +200,19 @@ def predict_test_set(model, test_loader):
         outputs = model(inputs)
         _, predicted = torch.max(outputs.data, 1)
         results = np.append(results, predicted.cpu().numpy())
+    results = np.int8(results)
+    return results
+
+def predict_test_set_5crop(model, test_loader):
+    results = [[]]
+    for batch_idx, (inputs, targets) in enumerate(test_loader):
+        if cuda_available:
+            inputs, targets = inputs.cuda(), targets.cuda()
+        bs, ncrops, c, h, w = inputs.size()
+        result = model(inputs.view(-1, c, h, w)) # fuse batch size and ncrops
+        result_avg = result.view(bs, ncrops, -1).mean(1) # avg over crops
+        _, result_avg = torch.max(result_avg, 1)
+        results = np.append(results, result_avg.cpu().detach().numpy())
     results = np.int8(results)
     return results
 
