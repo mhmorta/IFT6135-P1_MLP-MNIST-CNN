@@ -39,6 +39,7 @@ class Trainer():
         self.hyperparameters = hyperparameters
         self.lr= hyperparameters['lr0']
         self.test_prediction = []
+        self.log = {}
     # Keep only a single checkpoint, the best over test accuracy.
     def save_checkpoint(self, state, best, file_path="./output/checkpoint.pth.tar"):
         if best:
@@ -78,7 +79,7 @@ class Trainer():
 
     def adjust_learning_rate(self, epoch):
         if (epoch+1) % step == 0:
-            self.lr *= gamma
+            self.lr *= self.hyperparameters['gamma']
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = self.lr
     
@@ -121,7 +122,6 @@ class Trainer():
         best_acc = torch.FloatTensor([0])
         c = 0
         LOSSES = 0
-        loss_val = []
         COUNTER = 0
         ITERATIONS = 0
         learning_curve_nll_train = list()
@@ -181,9 +181,13 @@ class Trainer():
                             'state_dict': self.model.state_dict(),
                             'best_accuracy': best_accuracy
                         }, is_best)  
-                   
-        self.adjust_learning_rate(e)
-
+            if(self.hyperparameters['adjust_lr']):
+                self.adjust_learning_rate(e)
+        self.log = {'learning_curve_nll_train': learning_curve_nll_train,
+                    'learning_curve_nll_test': learning_curve_nll_test,
+                    'learning_curve_acc_train': learning_curve_acc_train,
+                    'learning_curve_acc_test': learning_curve_acc_test
+                    }
         return [learning_curve_nll_train, learning_curve_nll_test, learning_curve_acc_train,learning_curve_acc_test]
 
 def predict_test_set(model, test_loader):
@@ -196,6 +200,19 @@ def predict_test_set(model, test_loader):
         outputs = model(inputs)
         _, predicted = torch.max(outputs.data, 1)
         results = np.append(results, predicted.cpu().numpy())
+    results = np.int8(results)
+    return results
+
+def predict_test_set_5crop(model, test_loader):
+    results = [[]]
+    for batch_idx, (inputs, targets) in enumerate(test_loader):
+        if cuda_available:
+            inputs, targets = inputs.cuda(), targets.cuda()
+        bs, ncrops, c, h, w = inputs.size()
+        result = model(inputs.view(-1, c, h, w)) # fuse batch size and ncrops
+        result_avg = result.view(bs, ncrops, -1).mean(1) # avg over crops
+        _, result_avg = torch.max(result_avg, 1)
+        results = np.append(results, result_avg.cpu().detach().numpy())
     results = np.int8(results)
     return results
 

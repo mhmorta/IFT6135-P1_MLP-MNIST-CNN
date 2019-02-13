@@ -12,9 +12,6 @@ plt.ion()
 class DriveData(Dataset):
     __xs = []
     __ys = []
-    # normalize = transforms.Normalize((0.4895832, 0.4546405, 0.41594946), 
-    #                              (0.2520022, 0.24522494, 0.24728711))
-    # transform = transforms.Compose([transforms.ToTensor(), normalize])
 
     def __init__(self, folder_dataset, transform=None):
         self.transform = transform
@@ -43,18 +40,23 @@ class DriveData(Dataset):
     def __len__(self):
         return len(self.__xs)
 
-def datasets_loader():
+def datasets_loader(train_val_transforms=None, test_transforms=None):
 
     # transforms = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
     normalize = torchvision.transforms.Normalize((0.4895832, 0.4546405, 0.41594946), 
                                     (0.2520022, 0.24522494, 0.24728711))
     transforms = torchvision.transforms.Compose([torchvision.transforms.ToTensor(),
-                                normalize]
-                        )
+                                normalize])
+
+    if train_val_transforms==None:
+        train_val_transforms = transforms
+    if test_transforms==None:
+        test_transforms = transforms
+
 
     data = torchvision.datasets.ImageFolder(
                         root='./data/trainset/',
-                        transform=transforms
+                        transform=train_val_transforms
                         )
 
     dataset_ratio = np.array([95, 5])/100
@@ -77,8 +79,8 @@ def datasets_loader():
                         shuffle=True
     )       
 
-    test_data = DriveData("./data/testset/test/", transforms)
-    test_loader = DataLoader(test_data,  batch_size=10, shuffle=False, num_workers=1)
+    test_data = DriveData("./data/testset/test/", test_transforms)
+    test_loader = DataLoader(test_data,  batch_size=1, shuffle=False, num_workers=1)
 
     return [train_loader, valid_loader, test_loader]
 
