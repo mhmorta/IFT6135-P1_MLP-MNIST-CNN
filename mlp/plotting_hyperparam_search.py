@@ -4,7 +4,7 @@ import os
 
 
 reports = [f.replace('.csv', '') for f in os.listdir("reports/hyperparams")]
-
+reports = sorted(reports)
 best_model = None
 y_pos = np.arange(len(reports))
 template = "{0:50}|{1:10}"
@@ -19,7 +19,7 @@ for idx, hp in enumerate(reports):
             best_model = (hp, accuracy)
         plt.bar(idx, accuracy, label=hp)
 
-print('\nBest model with params ', best_model[0], ' has accuracy of ', best_model[1])
+print('\nBest model with params\n', best_model[0], '\nhas accuracy of', best_model[1])
 plt.xticks(y_pos, [r.replace(',m','\nm') for r in reports], rotation=90)
 plt.title('Accuracy of different models on validation set')
 plt.xlabel('Hypeparameters')
