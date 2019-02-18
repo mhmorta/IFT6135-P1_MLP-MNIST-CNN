@@ -2,6 +2,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import confusion_matrix
 import itertools
+import torchviz
+from torch.autograd import Variable
+import torch
+
+
 
 def plots(nll_train, nll_valid, acc_train, acc_valid ):
     plt.figure(1)
@@ -45,3 +50,13 @@ def plot_confusion_matrix(cm, classes=('Cat', 'Dog'),
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.tight_layout()
+
+def draw_computational_graph(model):
+    x = Variable(torch.randn(1,3,64,64))
+    if torch.cuda.is_available():
+        x = x.cuda()
+    y = model(x)
+    img = torchviz.make_dot(y.mean(), params=dict(model.named_parameters()))
+    img.format = 'png'
+    img.render()
+    print('Done...')

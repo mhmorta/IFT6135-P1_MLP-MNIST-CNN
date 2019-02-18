@@ -4,62 +4,75 @@ import torch.nn as nn
 from Modules.Dropout import dropout
 
 
-class VGG16(nn.Module):
-    def __init__(self):
-        super(VGG16, self).__init__()
+class VGG16_Dropout(nn.Module):
+    def __init__(self,hyperparams):
+        super(VGG16_Dropout, self).__init__()
         self.conv = nn.Sequential(
             # Layaer 1
             nn.Conv2d(in_channels=3, out_channels=64,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
-            # dropout(0.25, 64,'gaussian'),
+            dropout(hyperparams['dropout'], 16,'gaussian'),
 
+            # Layaer 2
             nn.Conv2d(in_channels=64, out_channels=64,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
+            dropout(hyperparams['dropout'], 16,'gaussian'),
             nn.MaxPool2d(kernel_size=(2,2), stride=2),
-            
+
             # Layaer 3
             nn.Conv2d(in_channels=64, out_channels=128,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
-            
+            dropout(hyperparams['dropout'], 16,'gaussian'),
+        
             nn.Conv2d(in_channels=128, out_channels=128,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
+            # dropout(hyperparams['dropout'], 16,'gaussian'),
             nn.MaxPool2d(kernel_size=(2,2), stride=2),
             
             # Layaer 5
             nn.Conv2d(in_channels=128, out_channels=256,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
+            dropout(hyperparams['dropout'], 16,'gaussian'),
 
             nn.Conv2d(in_channels=256, out_channels=256,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
-            
+            #  dropout(hyperparams['dropout'], 16,'gaussian'),
+           
             nn.Conv2d(in_channels=256, out_channels=256,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(2,2), stride=2),
+            dropout(hyperparams['dropout'], 16,'gaussian'),
             
              # Layaer 8
             nn.Conv2d(in_channels=256, out_channels=512,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
-            
+            #  dropout(hyperparams['dropout'], 16,'gaussian'),
+           
             nn.Conv2d(in_channels=512, out_channels=512,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
-            
+             dropout(hyperparams['dropout'], 16,'gaussian'),
+           
             nn.Conv2d(in_channels=512, out_channels=512,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(2,2), stride=2),
+            # dropout(hyperparams['dropout'], 16,'gaussian'),
         
             # Layaer 11
             nn.Conv2d(in_channels=512, out_channels=512,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
+            dropout(hyperparams['dropout'], 16,'gaussian'),
             
             # Layaer 12
             nn.Conv2d(in_channels=512, out_channels=512,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
+            dropout(hyperparams['dropout'], 16,'gaussian'),
             
             # Layaer 13
             nn.Conv2d(in_channels=512, out_channels=512,kernel_size=(3,3) , padding=1),
             nn.ReLU(),
+            dropout(hyperparams['dropout'], 16,'gaussian'),
+
             nn.MaxPool2d(kernel_size=(2,2), stride=2),  
-            # dropout(0.5, 512,'gaussian'),
         )
         
         self.classifier = nn.Sequential(
@@ -67,7 +80,8 @@ class VGG16(nn.Module):
             nn.Linear(4096, 4096),
             nn.Linear(4096, 2),
         )
-        # self.init_weights()
+        if hyperparams['init_weights']:
+            self.init_weights()
         
     def forward(self, x):
         x = self.conv(x)

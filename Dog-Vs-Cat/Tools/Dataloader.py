@@ -42,7 +42,6 @@ class DriveData(Dataset):
 
 def datasets_loader(train_val_transforms=None, test_transforms=None):
 
-    # transforms = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
     normalize = torchvision.transforms.Normalize((0.4895832, 0.4546405, 0.41594946), 
                                     (0.2520022, 0.24522494, 0.24728711))
     transforms = torchvision.transforms.Compose([torchvision.transforms.ToTensor(),

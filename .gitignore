@@ -11,4 +11,10 @@ Dog-Vs-Cat/output
 .vscode/
 ./Experiments/*
 */development/*
-
+Dog-Vs-Cat/garbage
+Dog-Vs-Cat/data
+Dog-Vs-Cat/model_vis
+Dog-Vs-Cat/Modules/__pycache__
+Dog-Vs-Cat/__pycache__
+Dog-Vs-Cat/Tools/__pycache__
+MNIST/data

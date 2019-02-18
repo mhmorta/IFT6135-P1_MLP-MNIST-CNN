@@ -71,36 +71,13 @@ class Trainer():
     def accuracy(self, proba, y):
         correct = torch.eq(proba.max(1)[1], y).sum().type(torch.FloatTensor)
         return correct / y.size(0)
-    
-#     def adjust_lr(self, optimizer, epoch, total_epochs):
-#         lr = lr0 * (0.5 ** (epoch / float(total_epochs)))
-#         for param_group in optimizer.param_groups:
-#             param_group['lr'] = lr
+
 
     def adjust_learning_rate(self, epoch):
         if (epoch+1) % step == 0:
             self.lr *= self.hyperparameters['gamma']
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = self.lr
-    
-    # def predict_test_set(self):
-    #     results = [[]]
-    #     for batch_idx, (inputs, targets) in enumerate(self.test_loader):
-    #         if cuda_available:
-    #             inputs, targets = inputs.cuda(), targets.cuda()
-    #         outputs = self.model(inputs)
-    #         _, predicted = torch.max(outputs.data, 1)
-    #         results = np.append(results, predicted.cpu().numpy())
-        
-    #     results = np.int8(results)
-    #     self.predict_test_set = results
-
-    # def generate_submission(self):
-    #     self.predict_test_set()
-    #     df = pd.DataFrame({ 'id': range(1, len(self.test_prediction)+1),'label': self.test_prediction})
-    #     df['label'].replace([0,1], ['Cat','Dog'], inplace=True)
-    #     df[df.columns].to_csv('submisstion.csv',index=False)
-    #     print('Done...')
 
     def confusion_matrix(self):
         y_pred = [[]]
@@ -153,41 +130,41 @@ class Trainer():
                     print(" Iteration {}: TRAIN {:.4f}".format(
                         ITERATIONS, avg_loss))
 
-                if ITERATIONS%(store_every) == 0:     
+            train_loss = self.evaluate(self.train_loader, self.criterion)
+            learning_curve_nll_train.append(train_loss)
+            valid_loss = self.evaluate(self.valid_loader, self.criterion)
+            learning_curve_nll_test.append(valid_loss)
 
-                    train_loss = self.evaluate(self.train_loader, self.criterion)
-                    learning_curve_nll_train.append(train_loss)
-                    valid_loss = self.evaluate(self.valid_loader, self.criterion)
-                    learning_curve_nll_test.append(valid_loss)
+            train_acc = self.evaluate(self.train_loader, self.accuracy)
+            learning_curve_acc_train.append(train_acc)
+            valid_acc = self.evaluate(self.valid_loader, self.accuracy)
+            learning_curve_acc_test.append(valid_acc)
 
-                    train_acc = self.evaluate(self.train_loader, self.accuracy)
-                    learning_curve_acc_train.append(train_acc)
-                    valid_acc = self.evaluate(self.valid_loader, self.accuracy)
-                    learning_curve_acc_test.append(valid_acc)
+            print(" [Loss] TRAIN {:.4f} / VALID {:.4f}".format(
+                train_loss, valid_loss))
+            print(" [ACC] TRAIN {:.4f} / VALID {:.4f}".format(
+                train_acc, valid_acc))
+            
+            acc = torch.FloatTensor([valid_acc])
+            is_best = (acc.numpy() > best_acc.numpy())
+            best_acc = torch.FloatTensor(max(acc.numpy(), best_acc.numpy()))
 
-                    print(" [Loss] TRAIN {:.4f} / VALID {:.4f}".format(
-                        train_loss, valid_loss))
-                    print(" [ACC] TRAIN {:.4f} / VALID {:.4f}".format(
-                        train_acc, valid_acc))
-                    
-                    acc = torch.FloatTensor([valid_acc])
-                    is_best = (acc.numpy() > best_acc.numpy())
-                    best_accuracy = torch.FloatTensor(max(acc.numpy(), best_acc.numpy()))
+            # Save checkpoint if is a new best
+            if(self.hyperparameters['save_checkpoint']):
+                self.save_checkpoint({
+                    'epoch': start_epoch + e + 1,
+                    'state_dict': self.model.state_dict(),
+                    'best_accuracy': best_acc
+                }, is_best)  
 
-                    # Save checkpoint if is a new best
-                    if(self.hyperparameters['save_checkpoint']):
-                        self.save_checkpoint({
-                            'epoch': start_epoch + e + 1,
-                            'state_dict': self.model.state_dict(),
-                            'best_accuracy': best_accuracy
-                        }, is_best)  
             if(self.hyperparameters['adjust_lr']):
                 self.adjust_learning_rate(e)
-        self.log = {'learning_curve_nll_train': learning_curve_nll_train,
-                    'learning_curve_nll_test': learning_curve_nll_test,
-                    'learning_curve_acc_train': learning_curve_acc_train,
-                    'learning_curve_acc_test': learning_curve_acc_test
-                    }
+            self.log = {'learning_curve_nll_train': learning_curve_nll_train,
+                        'learning_curve_nll_test': learning_curve_nll_test,
+                        'learning_curve_acc_train': learning_curve_acc_train,
+                        'learning_curve_acc_test': learning_curve_acc_test
+                        }
+                        
         return [learning_curve_nll_train, learning_curve_nll_test, learning_curve_acc_train,learning_curve_acc_test]
 
 def predict_test_set(model, test_loader):
